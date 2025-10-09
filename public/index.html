@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Mini Browser</title>
+  <title>T9 Search</title>
 
   <!-- Ultraviolet setup -->
   <script src="/uv/uv.bundle.js"></script>
@@ -18,6 +18,7 @@
   </script>
 
   <style>
+    /* Reset */
     * {
       margin: 0;
       padding: 0;
@@ -26,253 +27,141 @@
     }
 
     body {
-      background: #1a1a1a;
-      color: #fff;
+      background: radial-gradient(circle at top, #0f1013, #1a1a1a);
+      color: white;
       height: 100vh;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-    }
-
-    /* ---------- Tabs Bar ---------- */
-    .tabbar {
-      display: flex;
       align-items: center;
-      background: #202124;
-      height: 45px;
-      padding: 0 8px;
-      border-bottom: 1px solid #333;
-      overflow-x: auto;
+      justify-content: center;
     }
 
-    .tab {
+    /* Centered container */
+    .search-container {
+      text-align: center;
+      width: 80%;
+      max-width: 700px;
+      margin-bottom: 3vh;
+      animation: fadeIn 1s ease;
+    }
+
+    .title {
+      font-size: 3em;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #00b4ff;
+      letter-spacing: 2px;
+      text-shadow: 0 0 20px rgba(0, 180, 255, 0.3);
+    }
+
+    /* Input and button styling */
+    .search-bar {
       display: flex;
-      align-items: center;
-      background: #2b2b30;
-      padding: 5px 12px;
-      margin-right: 6px;
-      border-radius: 8px 8px 0 0;
-      color: #ccc;
-      font-size: 0.9em;
-      cursor: pointer;
-      transition: background 0.2s;
-      user-select: none;
-      white-space: nowrap;
+      width: 100%;
+      height: 55px;
+      background: #1e1f25;
+      border-radius: 50px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      transition: border 0.3s, box-shadow 0.3s;
     }
 
-    .tab.active {
-      background: #3a3a42;
-      color: #fff;
-    }
-
-    .tab span {
-      margin-right: 8px;
-    }
-
-    .close-btn {
-      background: none;
-      border: none;
-      color: #bbb;
-      font-size: 14px;
-      cursor: pointer;
-      transition: color 0.2s;
-    }
-
-    .close-btn:hover {
-      color: #ff4444;
-    }
-
-    .new-tab-btn {
-      background: none;
-      border: none;
-      color: #0abaff;
-      font-size: 20px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-left: auto;
-      padding: 0 8px;
-      transition: color 0.2s;
-    }
-
-    .new-tab-btn:hover {
-      color: #4dcfff;
-    }
-
-    /* ---------- Address bar ---------- */
-    .address-bar {
-      display: flex;
-      align-items: center;
-      background: #2a2b31;
-      height: 50px;
-      padding: 0 10px;
-      border-bottom: 1px solid #333;
-    }
-
-    .address-bar:focus-within {
-      box-shadow: 0 0 8px #0078ff;
+    .search-bar:focus-within {
+      border: 2px solid #0078ff;
+      box-shadow: 0 0 15px rgba(0, 120, 255, 0.4);
     }
 
     #urlInput {
       flex: 1;
-      height: 35px;
-      background: #1f1f23;
+      background: transparent;
       border: none;
       outline: none;
-      color: #eaeaea;
-      font-size: 16px;
-      padding-left: 10px;
-      border-radius: 20px;
+      color: #e8e8e8;
+      font-size: 1.1em;
+      padding: 0 20px;
     }
 
     #searchButton {
       background: linear-gradient(135deg, #00b4ff, #0078ff);
+      color: #fff;
       border: none;
       outline: none;
-      color: #fff;
+      padding: 0 25px;
+      font-size: 1.1em;
       font-weight: bold;
-      border-radius: 20px;
-      padding: 8px 16px;
-      margin-left: 8px;
       cursor: pointer;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      transition: 0.2s ease;
     }
 
     #searchButton:hover {
+      background: linear-gradient(135deg, #0093e9, #006de2);
       transform: scale(1.05);
-      box-shadow: 0 0 10px #0078ff;
     }
 
-    /* ---------- Iframe area ---------- */
+    /* Iframe styling */
     .iframeWindow {
-      flex-grow: 1;
       width: 100%;
+      height: 70vh;
       border: none;
-      background-color: #111;
+      border-top: 1px solid #0078ff;
+      background-color: #0d0d0f;
+      display: none;
+      animation: fadeIn 0.6s ease;
     }
 
-    ::-webkit-scrollbar {
-      height: 6px;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #555;
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #777;
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 
 <body>
-  <!-- Tabs bar -->
-  <div class="tabbar" id="tabbar">
-    <div class="tab active" data-id="0">
-      <span>New Tab</span>
-      <button class="close-btn" onclick="closeTab(event, 0)">×</button>
+  <div class="search-container">
+    <div class="title">T9 Search</div>
+    <div class="search-bar">
+      <input type="text" id="urlInput" placeholder="Enter a URL or search..." />
+      <button id="searchButton">Go</button>
     </div>
-    <button class="new-tab-btn" onclick="addTab()">+</button>
   </div>
 
-  <!-- Address bar -->
-  <div class="address-bar">
-    <input type="text" id="urlInput" placeholder="Search or enter a URL">
-    <button id="searchButton" onclick="navigate()">Go</button>
-  </div>
-
-  <!-- Main iframe display -->
   <iframe id="iframeWindow" class="iframeWindow"></iframe>
 
   <script>
-    const tabs = [];
-    let currentTab = 0;
+    const input = document.getElementById("urlInput");
+    const button = document.getElementById("searchButton");
     const iframe = document.getElementById("iframeWindow");
-    const urlInput = document.getElementById("urlInput");
 
-    // Create initial tab
-    tabs.push({ id: 0, title: "New Tab", url: "" });
-
-    function addTab() {
-      const id = Date.now();
-      tabs.push({ id, title: "New Tab", url: "" });
-      renderTabs();
-      switchTab(id);
-    }
-
-    function closeTab(event, id) {
-      event.stopPropagation();
-      const index = tabs.findIndex(t => t.id === id);
-      if (index > -1) tabs.splice(index, 1);
-
-      if (tabs.length === 0) {
-        addTab();
-      } else if (currentTab === id) {
-        const next = tabs[Math.max(index - 1, 0)];
-        switchTab(next.id);
-      }
-
-      renderTabs();
-    }
-
-    function switchTab(id) {
-      currentTab = id;
-      document.querySelectorAll(".tab").forEach(tab => {
-        tab.classList.toggle("active", parseInt(tab.dataset.id) === id);
-      });
-
-      const tabData = tabs.find(t => t.id === id);
-      if (tabData.url) iframe.src = tabData.url;
-      else iframe.removeAttribute("src");
-
-      urlInput.value = tabData.url || "";
-    }
-
-    function renderTabs() {
-      const bar = document.getElementById("tabbar");
-      bar.innerHTML = "";
-
-      tabs.forEach(t => {
-        const tabDiv = document.createElement("div");
-        tabDiv.className = "tab" + (t.id === currentTab ? " active" : "");
-        tabDiv.dataset.id = t.id;
-        tabDiv.innerHTML = `<span>${t.title}</span><button class='close-btn' onclick='closeTab(event, ${t.id})'>×</button>`;
-        tabDiv.onclick = () => switchTab(t.id);
-        bar.appendChild(tabDiv);
-      });
-
-      const addBtn = document.createElement("button");
-      addBtn.className = "new-tab-btn";
-      addBtn.innerText = "+";
-      addBtn.onclick = addTab;
-      bar.appendChild(addBtn);
-    }
-
-    function navigate() {
-      const input = urlInput.value.trim();
-      const url = input.startsWith("http") ? input : "https://" + input;
-      iframe.src = url;
-      const tab = tabs.find(t => t.id === currentTab);
-      if (tab) {
-        tab.url = url;
-        tab.title = url.replace(/^https?:\/\//, "").split("/")[0];
-      }
-      renderTabs();
-    }
-
-    iframe.addEventListener("load", () => {
-      try {
-        const tab = tabs.find(t => t.id === currentTab);
-        const title = iframe.contentDocument.title || "New Tab";
-        if (tab) tab.title = title;
-        renderTabs();
-      } catch {
-        // cross-origin pages block title access
-        const tab = tabs.find(t => t.id === currentTab);
-        if (tab) tab.title = new URL(tab.url).hostname;
-        renderTabs();
+    // Press Enter to search
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        button.click();
       }
     });
 
-    renderTabs();
+    // Handle search or navigation
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+
+      let url = input.value.trim();
+      const searchEngine = "https://duckduckgo.com/?q=";
+
+      if (!url) return;
+
+      // Detect if search or link
+      const isSearch = !url.includes(".") || url.includes(" ");
+      if (isSearch) {
+        url = searchEngine + encodeURIComponent(url);
+      } else if (!/^https?:\/\//i.test(url)) {
+        url = "https://" + url;
+      }
+
+      // Show iframe and load through UV
+      iframe.style.display = "block";
+      iframe.src = __uv$config.prefix + __uv$config.encodeUrl(url);
+    });
   </script>
 </body>
 </html>
