@@ -1,25 +1,38 @@
-document // makes it so you can press enter to submit as opposed to just being able to press a button
-    .getElementById("urlInput")
-    .addEventListener("keydown", function (event) {
-        if (event.key === "Enter") {
-            event.preventDefault();
-            document.getElementById("searchButton").click();
-        }
-    });
+// Handle Enter key to trigger search
+const input = document.getElementById("urlInput");
+const button = document.getElementById("searchButton");
+const iframeWindow = document.getElementById("iframeWindow");
 
-document.getElementById("searchButton").onclick = function (event) {
+// Run navigation when pressing Enter
+input.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
     event.preventDefault();
+    button.click();
+  }
+});
 
-    let url = document.getElementById("urlInput").value; // if no periods are detected in the input, search google instead
-    let searchUrl = "https://www.google.com/search?q=";
+// Click or Enter triggers navigation
+button.addEventListener("click", (event) => {
+  event.preventDefault();
 
-    if (!url.includes(".")) {
-        url = searchUrl + encodeURIComponent(url);
-    } else {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) { // if no http or https is detected, add https automatically
-            url = "https://" + url;
-        }
+  let url = input.value.trim();
+  const searchEngine = "https://duckduckgo.com/?q=";
+
+  // If empty, do nothing
+  if (!url) return;
+
+  // If it looks like a search (no dots or spaces)
+  const isSearch = !url.includes(".") || url.includes(" ");
+
+  if (isSearch) {
+    url = searchEngine + encodeURIComponent(url);
+  } else {
+    // Add https if missing
+    if (!/^https?:\/\//i.test(url)) {
+      url = "https://" + url;
     }
+  }
 
-    iframeWindow.src = __uv$config.prefix + __uv$config.encodeUrl(url);
-};
+  // Load the page through Ultraviolet proxy
+  iframeWindow.src = __uv$config.prefix + __uv$config.encodeUrl(url);
+});
