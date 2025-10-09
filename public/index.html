@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>T9 Search</title>
+  <title>T9 Mini Browser</title>
 
   <!-- Ultraviolet setup -->
   <script src="/uv/uv.bundle.js"></script>
@@ -18,149 +18,69 @@
   </script>
 
   <style>
-    /* Reset */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: "Poppins", sans-serif;
-    }
+    * { margin:0; padding:0; box-sizing:border-box; font-family: "Poppins", sans-serif; }
+    body { background:#111; color:white; height:100vh; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 
-    body {
-      background: radial-gradient(circle at top, #0f1013, #1a1a1a);
-      color: white;
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
+    .search-container { text-align:center; width:80%; max-width:700px; }
+    .title { font-size:3em; margin-bottom:20px; color:#00b4ff; }
+    .search-bar { display:flex; width:100%; height:50px; background:#222; border-radius:50px; overflow:hidden; }
+    #urlInput { flex:1; padding-left:20px; border:none; outline:none; font-size:1.1em; background:transparent; color:#eee; }
+    #searchButton { padding:0 25px; border:none; outline:none; cursor:pointer; background:linear-gradient(135deg,#00b4ff,#0078ff); color:#fff; font-weight:bold; transition:0.2s ease; }
+    #searchButton:hover { transform:scale(1.05); }
 
-    /* Centered container */
-    .search-container {
-      text-align: center;
-      width: 80%;
-      max-width: 700px;
-      margin-bottom: 3vh;
-      animation: fadeIn 1s ease;
-    }
-
-    .title {
-      font-size: 3em;
-      font-weight: 700;
-      margin-bottom: 20px;
-      color: #00b4ff;
-      letter-spacing: 2px;
-      text-shadow: 0 0 20px rgba(0, 180, 255, 0.3);
-    }
-
-    /* Input and button styling */
-    .search-bar {
-      display: flex;
-      width: 100%;
-      height: 55px;
-      background: #1e1f25;
-      border-radius: 50px;
-      overflow: hidden;
-      border: 2px solid transparent;
-      transition: border 0.3s, box-shadow 0.3s;
-    }
-
-    .search-bar:focus-within {
-      border: 2px solid #0078ff;
-      box-shadow: 0 0 15px rgba(0, 120, 255, 0.4);
-    }
-
-    #urlInput {
-      flex: 1;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: #e8e8e8;
-      font-size: 1.1em;
-      padding: 0 20px;
-    }
-
-    #searchButton {
-      background: linear-gradient(135deg, #00b4ff, #0078ff);
-      color: #fff;
-      border: none;
-      outline: none;
-      padding: 0 25px;
-      font-size: 1.1em;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.2s ease;
-    }
-
-    #searchButton:hover {
-      background: linear-gradient(135deg, #0093e9, #006de2);
-      transform: scale(1.05);
-    }
-
-    /* Iframe styling */
-    .iframeWindow {
-      width: 100%;
-      height: 70vh;
-      border: none;
-      border-top: 1px solid #0078ff;
-      background-color: #0d0d0f;
-      display: none;
-      animation: fadeIn 0.6s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    .iframeWindow { width:100%; height:100vh; border:none; display:none; }
+    .backButton { position:absolute; top:20px; left:20px; background:#0078ff; border:none; padding:10px 15px; border-radius:10px; cursor:pointer; color:#fff; font-weight:bold; display:none; z-index:1000; }
   </style>
 </head>
 
 <body>
-  <div class="search-container">
-    <div class="title">T9 Search</div>
+  <!-- Search page -->
+  <div class="search-container" id="homeScreen">
+    <div class="title">T9 Mini Browser</div>
     <div class="search-bar">
-      <input type="text" id="urlInput" placeholder="Enter a URL or search..." />
+      <input type="text" id="urlInput" placeholder="Enter a URL">
       <button id="searchButton">Go</button>
     </div>
   </div>
 
+  <!-- Back button -->
+  <button class="backButton" id="backButton">← Home</button>
+
+  <!-- Iframe for website -->
   <iframe id="iframeWindow" class="iframeWindow"></iframe>
 
   <script>
     const input = document.getElementById("urlInput");
     const button = document.getElementById("searchButton");
     const iframe = document.getElementById("iframeWindow");
+    const home = document.getElementById("homeScreen");
+    const backBtn = document.getElementById("backButton");
 
-    // Press Enter to search
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        button.click();
-      }
+    // Enter key triggers search
+    input.addEventListener("keydown", (e) => {
+      if(e.key === "Enter") button.click();
     });
 
-    // Handle search or navigation
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-
+    // Go to website
+    button.addEventListener("click", () => {
       let url = input.value.trim();
-      const searchEngine = "https://duckduckgo.com/?q=";
+      if(!url) return;
 
-      if (!url) return;
+      if(!/^https?:\/\//i.test(url)) url = "https://" + url;
 
-      // Detect if search or link
-      const isSearch = !url.includes(".") || url.includes(" ");
-      if (isSearch) {
-        url = searchEngine + encodeURIComponent(url);
-      } else if (!/^https?:\/\//i.test(url)) {
-        url = "https://" + url;
-      }
-
-      // Show iframe and load through UV
-      iframe.style.display = "block";
       iframe.src = __uv$config.prefix + __uv$config.encodeUrl(url);
+      iframe.style.display = "block";
+      home.style.display = "none";
+      backBtn.style.display = "block";
+    });
+
+    // Go back to home screen
+    backBtn.addEventListener("click", () => {
+      iframe.src = "";
+      iframe.style.display = "none";
+      home.style.display = "block";
+      backBtn.style.display = "none";
+      input.value = "";
     });
   </script>
 </body>
