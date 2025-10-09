@@ -31,18 +31,7 @@
       border-bottom:1px solid #333;
       overflow-x:auto;
     }
-    .tab {
-      display:flex;
-      align-items:center;
-      background:#2b2b30;
-      padding:4px 12px;
-      margin-right:6px;
-      border-radius:8px 8px 0 0;
-      color:#ccc;
-      font-size:0.9em;
-      cursor:pointer;
-      white-space:nowrap;
-    }
+    .tab { display:flex; align-items:center; background:#2b2b30; padding:4px 12px; margin-right:6px; border-radius:8px 8px 0 0; color:#ccc; font-size:0.9em; cursor:pointer; white-space:nowrap; }
     .tab.active { background:#3a3a42; color:#fff; }
     .tab span { margin-right:6px; }
     .close-btn { background:none; border:none; color:#bbb; font-size:14px; cursor:pointer; }
@@ -50,41 +39,42 @@
     .new-tab-btn { background:none; border:none; color:#0abaff; font-size:20px; font-weight:bold; cursor:pointer; margin-left:auto; padding:0 8px; }
     .new-tab-btn:hover { color:#4dcfff; }
 
-    /* Home / search screen */
-    .homeScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; flex-grow:1; }
-    .search-container { text-align:center; width:80%; max-width:700px; }
-    .title { font-size:2.5em; margin-bottom:20px; color:#00b4ff; }
-    .search-bar { display:flex; width:100%; height:50px; background:#222; border-radius:50px; overflow:hidden; }
-    #urlInput { flex:1; padding-left:20px; border:none; outline:none; font-size:1.1em; background:transparent; color:#eee; }
-    #searchButton { padding:0 25px; border:none; outline:none; cursor:pointer; background:linear-gradient(135deg,#00b4ff,#0078ff); color:#fff; font-weight:bold; transition:0.2s ease; }
+    /* Address / navigation bar */
+    .address-bar {
+      display:flex;
+      align-items:center;
+      background:#1f1f23;
+      height:50px;
+      padding:0 10px;
+      border-bottom:1px solid #333;
+    }
+    .nav-button {
+      background:#0078ff; border:none; color:#fff; padding:6px 12px; margin-right:6px; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s ease;
+    }
+    .nav-button:hover { background:#005dc1; }
+    #urlInput { flex:1; height:34px; padding:0 10px; border-radius:10px; border:none; outline:none; font-size:1em; background:#2b2b30; color:#eee; }
+    #searchButton { background:linear-gradient(135deg,#00b4ff,#0078ff); border:none; color:#fff; padding:0 15px; margin-left:6px; border-radius:10px; cursor:pointer; font-weight:bold; transition:0.2s ease; }
     #searchButton:hover { transform:scale(1.05); }
 
     /* Iframe area */
-    .iframeWindow { width:100%; flex-grow:1; border:none; display:none; }
+    .iframeWindow { flex-grow:1; width:100%; border:none; background:#0d0d0f; }
 
-    /* Back to home button */
-    .backButton { position:absolute; top:50px; left:10px; background:#0078ff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; color:#fff; font-weight:bold; display:none; z-index:1000; }
   </style>
 </head>
-
 <body>
+
   <!-- Tabs -->
   <div class="tabbar" id="tabbar">
     <button class="new-tab-btn" onclick="addTab()">+</button>
   </div>
 
-  <!-- Back button -->
-  <button class="backButton" id="backButton">← Home</button>
-
-  <!-- Home screen -->
-  <div class="homeScreen" id="homeScreen">
-    <div class="search-container">
-      <div class="title">T9 Mini Browser</div>
-      <div class="search-bar">
-        <input type="text" id="urlInput" placeholder="Enter URL or search..."/>
-        <button id="searchButton">Go</button>
-      </div>
-    </div>
+  <!-- Address / navigation bar -->
+  <div class="address-bar">
+    <button class="nav-button" id="backBtn">←</button>
+    <button class="nav-button" id="forwardBtn">→</button>
+    <button class="nav-button" id="refreshBtn">⟳</button>
+    <input type="text" id="urlInput" placeholder="Enter URL or search..."/>
+    <button id="searchButton">Go</button>
   </div>
 
   <!-- Iframe for pages -->
@@ -94,20 +84,24 @@
     const duckDuckGo = "https://duckduckgo.com/?q=";
 
     const tabbar = document.getElementById("tabbar");
-    const home = document.getElementById("homeScreen");
     const iframe = document.getElementById("iframeWindow");
-    const backBtn = document.getElementById("backButton");
     const input = document.getElementById("urlInput");
     const searchBtn = document.getElementById("searchButton");
+    const backBtn = document.getElementById("backBtn");
+    const forwardBtn = document.getElementById("forwardBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
 
     let tabs = [];
     let currentTabId = null;
+
+    let historyStack = [];
+    let historyIndex = -1;
 
     function renderTabs() {
       tabbar.innerHTML = "";
       tabs.forEach(tab => {
         const div = document.createElement("div");
-        div.className = "tab" + (tab.id === currentTabId ? " active" : "");
+        div.className = "tab" + (tab.id===currentTabId?" active":"");
         div.dataset.id = tab.id;
         div.innerHTML = `<span>${tab.title}</span><button class="close-btn" onclick="closeTab(event, ${tab.id})">×</button>`;
         div.onclick = () => switchTab(tab.id);
@@ -122,73 +116,80 @@
 
     function addTab() {
       const id = Date.now();
-      tabs.push({ id, title: "New Tab", url: "" });
+      tabs.push({id, title:"New Tab", url:""});
       switchTab(id);
       renderTabs();
     }
 
     function closeTab(event, id) {
       event.stopPropagation();
-      const index = tabs.findIndex(t => t.id === id);
-      if(index > -1) tabs.splice(index,1);
-      if(tabs.length === 0) addTab();
-      else if(currentTabId === id) switchTab(tabs[Math.max(index-1,0)].id);
+      const idx = tabs.findIndex(t=>t.id===id);
+      if(idx>-1) tabs.splice(idx,1);
+      if(tabs.length===0) addTab();
+      else if(currentTabId===id) switchTab(tabs[Math.max(idx-1,0)].id);
       renderTabs();
     }
 
     function switchTab(id) {
-      currentTabId = id;
+      currentTabId=id;
       renderTabs();
-      const tab = tabs.find(t => t.id === id);
-      if(tab.url) {
-        iframe.src = tab.url;
-        iframe.style.display = "block";
-        home.style.display = "none";
-        backBtn.style.display = "block";
-      } else {
-        iframe.src = "";
-        iframe.style.display = "none";
-        home.style.display = "flex";
-        backBtn.style.display = "none";
+      const tab = tabs.find(t=>t.id===id);
+      if(tab.url) loadURL(tab.url,false);
+      else {
+        iframe.src="";
+        historyStack=[];
+        historyIndex=-1;
+        input.value="";
       }
     }
 
-    function navigate(urlInputValue) {
-      let query = urlInputValue.trim();
+    function navigate(query) {
       if(!query) return;
-
-      const isProbablyURL = query.includes(".") && !query.includes(" ");
-      let url = isProbablyURL ? (/^https?:\/\//i.test(query) ? query : "https://"+query) : duckDuckGo + encodeURIComponent(query);
-
-      const tab = tabs.find(t => t.id === currentTabId);
+      const isURL = query.includes(".") && !query.includes(" ");
+      let url = isURL ? (/^https?:\/\//i.test(query)?query:"https://"+query) : duckDuckGo+encodeURIComponent(query);
+      const tab = tabs.find(t=>t.id===currentTabId);
       if(tab) {
-        tab.url = __uv$config.prefix + __uv$config.encodeUrl(url);
-        tab.title = isProbablyURL ? query.replace(/^https?:\/\//,"") : query;
+        tab.url = __uv$config.prefix+__uv$config.encodeUrl(url);
+        tab.title = isURL?query.replace(/^https?:\/\//,""):query;
       }
-
-      iframe.src = tabs.find(t=>t.id===currentTabId).url;
-      iframe.style.display = "block";
-      home.style.display = "none";
-      backBtn.style.display = "block";
+      loadURL(tab.url,true);
       renderTabs();
     }
 
-    // Event listeners
-    searchBtn.addEventListener("click", () => navigate(input.value));
-    input.addEventListener("keydown", (e) => { if(e.key==="Enter") navigate(input.value); });
-    backBtn.addEventListener("click", () => {
-      iframe.src = "";
-      iframe.style.display = "none";
-      home.style.display = "flex";
-      backBtn.style.display = "none";
-      const tab = tabs.find(t=>t.id===currentTabId);
-      if(tab) tab.url="";
-      input.value="";
-      renderTabs();
+    function loadURL(url, addToHistory=true) {
+      iframe.src=url;
+      input.value=url.replace(__uv$config.prefix,"");
+      if(addToHistory){
+        historyStack = historyStack.slice(0,historyIndex+1);
+        historyStack.push(url);
+        historyIndex=historyStack.length-1;
+      }
+    }
+
+    // Navigation buttons
+    backBtn.addEventListener("click",()=>{
+      if(historyIndex>0){
+        historyIndex--;
+        loadURL(historyStack[historyIndex],false);
+      }
     });
+    forwardBtn.addEventListener("click",()=>{
+      if(historyIndex<historyStack.length-1){
+        historyIndex++;
+        loadURL(historyStack[historyIndex],false);
+      }
+    });
+    refreshBtn.addEventListener("click",()=>{
+      if(historyIndex>=0) loadURL(historyStack[historyIndex],false);
+    });
+
+    // Search bar
+    searchBtn.addEventListener("click",()=>navigate(input.value));
+    input.addEventListener("keydown",(e)=>{ if(e.key==="Enter") navigate(input.value); });
 
     // Initialize first tab
     addTab();
+
   </script>
 </body>
 </html>
