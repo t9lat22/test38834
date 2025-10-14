@@ -3,11 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>T9 OS Browser</title>
-
-<!-- Ultraviolet setup -->
-<script src="/uv/uv.bundle.js" defer></script>
-<script src="/uv/uv.config.js" defer></script>
-
 <style>
 * { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,sans-serif; }
 body { height:100vh; display:flex; flex-direction:column; background:url('abstract.png') center/cover no-repeat; color:white; overflow:hidden; }
@@ -26,7 +21,7 @@ body { height:100vh; display:flex; flex-direction:column; background:url('abstra
 #searchButton:hover { background:#005dc1; }
 .iframeWindow { flex-grow:1; width:100%; border:none; background:#111; display:none; }
 .home { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; color:white; }
-.home h1 { font-size:4em; font-weight:700; margin-bottom:20px; text-shadow:0 0 15px rgba(0,0,0,.5); }
+.home h1 { font-size:4em; font-weight:700; margin-bottom:20px; text-shadow:0 0 5px rgba(0,0,0,.5); }
 .home input { width:400px; height:45px; font-size:1.2em; border-radius:12px; border:none; outline:none; padding:0 15px; background:rgba(0,0,0,.6); color:white; }
 .home button { height:45px; font-size:1.2em; border:none; border-radius:12px; padding:0 20px; margin-left:8px; background:#0078ff; color:white; cursor:pointer; font-weight:bold; }
 .home button:hover { background:#005dc1; }
@@ -67,28 +62,29 @@ const backBtn = document.getElementById("backBtn");
 const forwardBtn = document.getElementById("forwardBtn");
 const refreshBtn = document.getElementById("refreshBtn");
 
-let tabs = [], currentTabId = null, historyStack = [], historyIndex = -1;
+let tabs=[], currentTabId=null, historyStack=[], historyIndex=-1;
+let uvLoaded = false; // UV lazy-load flag
 
 function renderTabs() {
   tabbar.innerHTML = "";
-  tabs.forEach(tab => {
-    const div = document.createElement("div");
-    div.className = "tab" + (tab.id===currentTabId?" active":"");
-    div.dataset.id = tab.id;
-    div.innerHTML = `<span>${tab.title}</span><button class="close-btn" onclick="closeTab(event,${tab.id})">×</button>`;
-    div.onclick = () => switchTab(tab.id);
+  tabs.forEach(tab=>{
+    const div=document.createElement("div");
+    div.className="tab"+(tab.id===currentTabId?" active":"");
+    div.dataset.id=tab.id;
+    div.innerHTML=`<span>${tab.title}</span><button class="close-btn" onclick="closeTab(event,${tab.id})">×</button>`;
+    div.onclick=()=>switchTab(tab.id);
     tabbar.appendChild(div);
   });
-  const addBtn = document.createElement("button");
-  addBtn.className = "new-tab-btn";
-  addBtn.textContent = "+";
-  addBtn.onclick = addTab;
+  const addBtn=document.createElement("button");
+  addBtn.className="new-tab-btn";
+  addBtn.textContent="+";
+  addBtn.onclick=addTab;
   tabbar.appendChild(addBtn);
 }
 
-function addTab() {
-  const id = Date.now();
-  tabs.push({id, title:"New Tab", url:""});
+function addTab(){
+  const id=Date.now();
+  tabs.push({id,title:"New Tab",url:""});
   switchTab(id);
   renderTabs();
   showHome(true);
@@ -116,8 +112,31 @@ function showHome(show){
   iframe.style.display=show?"none":"block";
 }
 
+// Lazy-load UV only when navigating to a URL
+function loadUV(){
+  if(uvLoaded) return;
+  uvLoaded=true;
+
+  const bundle=document.createElement("script");
+  bundle.src="/uv/uv.bundle.js";
+  bundle.defer=true;
+  document.head.appendChild(bundle);
+
+  const config=document.createElement("script");
+  config.src="/uv/uv.config.js";
+  config.defer=true;
+  document.head.appendChild(config);
+
+  setTimeout(()=>{
+    if("serviceWorker" in navigator){
+      navigator.serviceWorker.register("/uv/sw.js",{scope:__uv$config.prefix});
+    }
+  },500);
+}
+
 function navigate(query){
   if(!query) return;
+  loadUV(); // lazy-load UV here
   const isURL=query.includes(".")&&!query.includes(" ");
   const fullURL=isURL?(/^https?:\/\//i.test(query)?query:"https://"+query):duckDuckGo+encodeURIComponent(query);
   const tab=tabs.find(t=>t.id===currentTabId);
@@ -149,9 +168,6 @@ searchBtn.onclick=()=>navigate(input.value);
 input.addEventListener("keydown", e=>{if(e.key==="Enter") navigate(input.value);});
 centerGo.onclick=()=>navigate(centerInput.value);
 centerInput.addEventListener("keydown", e=>{if(e.key==="Enter") navigate(centerInput.value);});
-
-// Delay service worker to speed up UI
-window.addEventListener("load",()=>{setTimeout(()=>{if("serviceWorker"in navigator){navigator.serviceWorker.register("/uv/sw.js",{scope:__uv$config.prefix});}},500);});
 
 addTab();
 </script>
