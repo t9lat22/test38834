@@ -1,134 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>T9 OS Browser — Fast UV</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>T9 OS Browser</title>
 
-  <!-- Preload UV for faster start -->
-  <link rel="preload" href="/uv/uv.bundle.js" as="script">
-  <link rel="preload" href="/uv/uv.config.js" as="script">
-  <script src="/uv/uv.bundle.js" defer></script>
-  <script src="/uv/uv.config.js" defer></script>
+<!-- BareMux script -->
+<script type="module">
+  import BareMux from './uv/index.js';
 
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; font-family:sans-serif; }
-    body { height:100vh; display:flex; flex-direction:column; background:#101010; color:white; }
-    .bar { display:flex; align-items:center; background:#1c1c1c; padding:6px; border-bottom:1px solid #333; }
-    .bar input { flex:1; margin:0 6px; padding:8px; border-radius:8px; border:1px solid #444; background:#000; color:#eee; }
-    button { background:#0078ff; border:none; color:white; padding:8px 12px; border-radius:8px; cursor:pointer; }
-    button:hover { background:#005fd1; }
-    iframe { flex:1; border:none; width:100%; background:#000; }
-    .tabs { display:flex; background:#151515; border-bottom:1px solid #333; overflow-x:auto; }
-    .tab { padding:6px 10px; margin-right:4px; background:#222; border-radius:8px 8px 0 0; cursor:pointer; }
-    .tab.active { background:#333; color:#00bfff; border-bottom:2px solid #00bfff; }
-  </style>
+  window.baremux = new BareMux.BareClient();
+</script>
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,sans-serif; }
+body { height:100vh; display:flex; flex-direction:column; background:#111; color:white; overflow:hidden; }
+.address-bar { display:flex; align-items:center; background:#222; height:50px; padding:0 10px; border-bottom:1px solid #333; }
+.nav-button { background:#333; border:none; color:#fff; padding:6px 12px; margin-right:6px; border-radius:6px; cursor:pointer; font-weight:bold; }
+.nav-button:hover { background:#0078ff; }
+#urlInput { flex:1; height:34px; padding:0 10px; border-radius:10px; border:1px solid #555; outline:none; font-size:1em; background:#1c1c1c; color:#e8e8e8; }
+#searchButton { background:#0078ff; border:none; color:white; padding:0 15px; margin-left:6px; border-radius:10px; cursor:pointer; font-weight:bold; }
+#searchButton:hover { background:#005dc1; }
+.content { flex-grow:1; padding:10px; overflow:auto; background:#111; }
+</style>
 </head>
 <body>
-  <div class="tabs" id="tabs"></div>
 
-  <div class="bar">
-    <button id="backBtn">←</button>
-    <button id="fwdBtn">→</button>
-    <button id="reloadBtn">⟳</button>
-    <input id="urlBox" placeholder="Enter URL or search...">
-    <button id="goBtn">Go</button>
-  </div>
+<div class="address-bar">
+  <button class="nav-button" id="backBtn">←</button>
+  <button class="nav-button" id="forwardBtn">→</button>
+  <button class="nav-button" id="refreshBtn">⟳</button>
+  <input type="text" id="urlInput" placeholder="Enter URL or search...">
+  <button id="searchButton">Go</button>
+</div>
 
-  <iframe id="view" src="about:blank" loading="lazy"></iframe>
+<div class="content" id="content"></div>
 
-  <script>
-    // --- UV caching service worker (inline, faster than cache.js) ---
-    window.addEventListener("load", () => {
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register(
-          URL.createObjectURL(new Blob([`
-self.addEventListener('install', e => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(clients.claim()));
-self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(r =>
-      r || fetch(e.request).then(resp => {
-        const copy = resp.clone();
-        caches.open('uv-fast-cache').then(c => c.put(e.request, copy));
-        return resp;
-      })
-    )
-  );
-});
-          `], { type: "text/javascript" })),
-          { scope: "/" }
-        );
-      }
-    });
+<script type="module">
+const duckDuckGo = "https://duckduckgo.com/?q=";
+const input = document.getElementById("urlInput");
+const searchBtn = document.getElementById("searchButton");
+const content = document.getElementById("content");
 
-    // --- UI logic ---
-    const view = document.getElementById("view");
-    const urlBox = document.getElementById("urlBox");
-    const goBtn = document.getElementById("goBtn");
-    const backBtn = document.getElementById("backBtn");
-    const fwdBtn = document.getElementById("fwdBtn");
-    const reloadBtn = document.getElementById("reloadBtn");
-    const tabsDiv = document.getElementById("tabs");
+let historyStack = [];
+let historyIndex = -1;
 
-    let tabs = [];
-    let current = null;
+async function navigate(query) {
+  if (!query) return;
+  const isURL = query.includes(".") && !query.includes(" ");
+  const fullURL = isURL ? (/^https?:\/\//i.test(query) ? query : "https://" + query)
+                        : duckDuckGo + encodeURIComponent(query);
+  await loadURL(fullURL);
+}
 
-    const searchEngine = "https://duckduckgo.com/?q=";
+async function loadURL(url) {
+  try {
+    const response = await window.baremux.fetch(url);
+    const html = await response.text();
+    content.innerHTML = html;
 
-    function addTab(url = "") {
-      const id = Date.now();
-      tabs.push({ id, title: url || "New Tab", url });
-      current = id;
-      renderTabs();
-      if (url) loadURL(url);
-    }
+    // update history
+    historyStack = historyStack.slice(0, historyIndex + 1);
+    historyStack.push(url);
+    historyIndex = historyStack.length - 1;
 
-    function renderTabs() {
-      tabsDiv.innerHTML = "";
-      for (const tab of tabs) {
-        const t = document.createElement("div");
-        t.className = "tab" + (tab.id === current ? " active" : "");
-        t.textContent = tab.title.slice(0, 18);
-        t.onclick = () => switchTab(tab.id);
-        tabsDiv.appendChild(t);
-      }
-      const plus = document.createElement("div");
-      plus.textContent = "+";
-      plus.className = "tab";
-      plus.onclick = () => addTab();
-      tabsDiv.appendChild(plus);
-    }
+    input.value = url;
+  } catch (err) {
+    content.innerHTML = `<p style="color:red;">Failed to load: ${url}</p>`;
+    console.error(err);
+  }
+}
 
-    function switchTab(id) {
-      current = id;
-      renderTabs();
-      const tab = tabs.find(t => t.id === id);
-      if (tab?.url) loadURL(tab.url);
-      else view.src = "about:blank";
-    }
+searchBtn.onclick = () => navigate(input.value);
+input.addEventListener("keydown", e => e.key === "Enter" && navigate(input.value));
 
-    function navigate(input) {
-      if (!input.trim()) return;
-      const isURL = input.includes(".") && !input.includes(" ");
-      const full = isURL ? (input.startsWith("http") ? input : "https://" + input)
-                         : searchEngine + encodeURIComponent(input);
-      const proxyURL = __uv$config.prefix + __uv$config.encodeUrl(full);
-      loadURL(proxyURL);
-      const tab = tabs.find(t => t.id === current);
-      if (tab) { tab.url = proxyURL; tab.title = input; }
-      renderTabs();
-    }
+document.getElementById("backBtn").onclick = () => {
+  if (historyIndex > 0) {
+    historyIndex--;
+    loadURL(historyStack[historyIndex]);
+  }
+};
+document.getElementById("forwardBtn").onclick = () => {
+  if (historyIndex < historyStack.length - 1) {
+    historyIndex++;
+    loadURL(historyStack[historyIndex]);
+  }
+};
+document.getElementById("refreshBtn").onclick = () => {
+  if (historyIndex >= 0) loadURL(historyStack[historyIndex]);
+};
+</script>
 
-    function loadURL(u) { view.src = u; urlBox.value = u; }
-
-    goBtn.onclick = () => navigate(urlBox.value);
-    urlBox.addEventListener("keydown", e => e.key === "Enter" && navigate(urlBox.value));
-    reloadBtn.onclick = () => view.contentWindow.location.reload();
-    backBtn.onclick = () => view.contentWindow.history.back();
-    fwdBtn.onclick = () => view.contentWindow.history.forward();
-
-    addTab();
-  </script>
 </body>
 </html>
