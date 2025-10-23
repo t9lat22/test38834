@@ -1,152 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>T9 OS — iframe-free proxied browser</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>T9 OS Browser</title>
+
+<script src="/uv/uv.bundle.js" defer></script>
+<script src="/uv/uv.config.js" defer></script>
+
 <style>
-body{margin:0;font-family:system-ui;background:#0b0b0b;color:#eee;height:100vh;display:flex;flex-direction:column;}
-.tabbar{display:flex;gap:4px;background:#111;padding:4px;overflow-x:auto;}
-.tab{padding:4px 8px;border-radius:6px;background:#1f1f1f;color:#ccc;cursor:pointer;white-space:nowrap;}
-.tab.active{background:#282828;color:#fff;border:1px solid #3a8fd3;}
-.new-tab{padding:4px 8px;background:transparent;border:1px dashed #2b2b2b;color:#4fc3f7;cursor:pointer;}
-.address{display:flex;gap:4px;padding:4px;background:#0f0f0f;border-bottom:1px solid #161616;}
-.address input{flex:1;padding:6px;border-radius:6px;border:1px solid #262626;background:#0b0b0b;color:#eee;}
-.btn{padding:6px 10px;border-radius:6px;border:none;background:#1376d6;color:#fff;cursor:pointer;}
-.btn.light{background:#222;color:#ddd;}
-#viewport{flex:1;overflow:auto;padding:10px;background:#070707;color:#ddd;}
-pre.notice{padding:12px;background:#111;border-radius:6px;color:#bbb;}
+  body { margin:0; font-family:system-ui; background:#111; color:white; display:flex; flex-direction:column; height:100vh; }
+  .address-bar { display:flex; padding:6px; background:#222; }
+  .address-bar input { flex:1; padding:6px 10px; border-radius:8px; border:none; background:#333; color:white; }
+  .address-bar button { margin-left:6px; padding:6px 12px; border:none; border-radius:8px; background:#0078ff; color:white; cursor:pointer; }
+  .content { flex:1; overflow:auto; padding:10px; }
 </style>
 </head>
+
 <body>
-
-<div class="tabbar" id="tabbar"></div>
-
-<div class="address">
-  <button class="btn light" id="back">←</button>
-  <button class="btn light" id="forward">→</button>
-  <button class="btn light" id="reload">⟳</button>
-  <input id="url" placeholder="Enter URL or search (youtube.com / poki.com)" />
-  <button class="btn" id="go">Go</button>
+<div class="address-bar">
+  <input type="text" id="urlInput" placeholder="Enter URL">
+  <button id="goBtn">Go</button>
 </div>
-
-<div id="viewport">
-  <pre class="notice">Welcome — type a URL above. Uses your existing UVProxy backend. No iframes.</pre>
+<div class="content" id="content">
+  <p>Enter a URL above and press Go</p>
 </div>
 
 <script>
-const PROXY = '/proxy?url='; // <- your existing UVProxy endpoint
-const SEARCH = 'https://duckduckgo.com/?q=';
+  const PROXY = __uv$config?.prefix || "/uv/";
+  const content = document.getElementById("content");
+  const input = document.getElementById("urlInput");
+  const goBtn = document.getElementById("goBtn");
 
-const tabbar = document.getElementById('tabbar');
-const viewport = document.getElementById('viewport');
-const urlInput = document.getElementById('url');
-const goBtn = document.getElementById('go');
-const backBtn = document.getElementById('back');
-const fwdBtn = document.getElementById('forward');
-const reloadBtn = document.getElementById('reload');
+  async function loadURL(url) {
+    if(!url) return;
+    if(!/^https?:\/\//i.test(url)) url = "https://" + url;
 
-let tabs = [];
-let currentTab = null;
-let historyStack = [];
-let historyIndex = -1;
-
-function isLikelyUrl(s){ return s && (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s) || (s.includes('.') && !s.includes(' '))); }
-function toFullUrl(s){ return isLikelyUrl(s) ? (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s)?s:'https://'+s) : SEARCH+encodeURIComponent(s); }
-function proxied(url){ return PROXY + encodeURIComponent(url); }
-function createId(){ return Date.now()+Math.floor(Math.random()*1000); }
-
-function renderTabs(){
-  tabbar.innerHTML='';
-  for(const t of tabs){
-    const el=document.createElement('div');
-    el.className='tab'+(t.id===currentTab?' active':'');
-    el.textContent=t.title||t.url||'New Tab';
-    el.onclick=()=>switchTab(t.id);
-    const close=document.createElement('span');
-    close.textContent=' ×';
-    close.style.marginLeft='6px';
-    close.style.opacity='0.7';
-    close.style.cursor='pointer';
-    close.onclick=e=>{ e.stopPropagation(); closeTab(t.id); };
-    el.appendChild(close);
-    tabbar.appendChild(el);
+    try {
+      const proxied = PROXY + __uv$config.encodeUrl(url);
+      const res = await fetch(proxied);
+      const text = await res.text();
+      content.innerHTML = text;
+    } catch(err) {
+      content.innerHTML = `<p style="color:red">Cannot GET proxy: ${err}</p>`;
+    }
   }
-  const add=document.createElement('button');
-  add.className='new-tab';
-  add.textContent='+';
-  add.onclick=()=>newTab();
-  tabbar.appendChild(add);
-}
 
-function newTab(url=''){
-  const id=createId();
-  tabs.push({id,title:'New Tab',url});
-  currentTab=id;
-  renderTabs();
-  if(url) loadUrl(url); else showHome();
-}
-function closeTab(id){
-  const idx=tabs.findIndex(t=>t.id===id);
-  if(idx===-1) return;
-  tabs.splice(idx,1);
-  if(tabs.length===0) newTab();
-  currentTab=tabs[Math.max(0,idx-1)].id;
-  renderTabs();
-  const t=tabs.find(t=>t.id===currentTab);
-  if(t?.url) loadUrl(t.url); else showHome();
-}
-function switchTab(id){
-  currentTab=id;
-  renderTabs();
-  const t=tabs.find(x=>x.id===id);
-  if(t?.url) loadUrl(t.url); else showHome();
-}
+  goBtn.onclick = () => loadURL(input.value);
+  input.addEventListener("keydown", e => { if(e.key==="Enter") loadURL(input.value); });
 
-function showHome(){ viewport.innerHTML='<pre class="notice">Welcome — type URL above. Uses your UVProxy backend. No iframes.</pre>'; urlInput.value=''; }
-
-async function loadUrl(rawUrl){
-  if(!rawUrl) return;
-  const url=toFullUrl(rawUrl);
-  urlInput.value=url;
-  const tab=tabs.find(t=>t.id===currentTab);
-  if(tab){ tab.url=url; tab.title=url; renderTabs(); }
-  viewport.innerHTML=`<pre class="notice">Loading ${url}...</pre>`;
-  try{
-    const resp=await fetch(proxied(url),{credentials:'include'});
-    const html=await resp.text();
-    viewport.innerHTML=html;
-
-    // rewrite anchors to single-page navigation
-    viewport.querySelectorAll('a').forEach(a=>{
-      a.addEventListener('click',ev=>{
-        const href=a.getAttribute('href');
-        if(!href||href.startsWith('javascript:')||href.startsWith('mailto:')) return;
-        ev.preventDefault();
-        const abs=new URL(href,url).toString();
-        const tab=tabs.find(t=>t.id===currentTab);
-        if(tab){ tab.url=abs; tab.title=abs; renderTabs(); }
-        historyPush(abs);
-        loadUrl(abs);
-      });
-    });
-    historyPush(url);
-  }catch(e){ viewport.innerHTML=`<pre class="notice">Failed to load ${url}\n\n${e}</pre>`; console.error(e); }
-}
-
-function historyPush(url){
-  if(historyIndex>=0 && historyStack[historyIndex]===url) return;
-  historyStack=historyStack.slice(0,historyIndex+1);
-  historyStack.push(url);
-  historyIndex=historyStack.length-1;
-}
-
-goBtn.onclick=()=>{ const raw=urlInput.value.trim(); if(raw) loadUrl(raw); };
-backBtn.onclick=()=>{ if(historyIndex>0){ historyIndex--; loadUrl(historyStack[historyIndex]); } };
-fwdBtn.onclick=()=>{ if(historyIndex<historyStack.length-1){ historyIndex++; loadUrl(historyStack[historyIndex]); } };
-reloadBtn.onclick=()=>{ if(historyIndex>=0) loadUrl(historyStack[historyIndex]); };
-
-newTab();
+  // register service worker
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register("/uv/sw.js",{scope:PROXY})
+      .then(()=>console.log("Service worker registered"))
+      .catch(console.error);
+  }
 </script>
 </body>
 </html>
