@@ -1,142 +1,155 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>T9 OS Fast Proxy</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif;}
-body{height:100vh;display:flex;flex-direction:column;background:url('abstract.png') center/cover no-repeat;color:white;overflow:hidden;}
-.tabbar{display:flex;align-items:center;background:#1c1c1c;height:40px;padding:0 8px;border-bottom:1px solid #333;overflow-x:auto;}
-.tab{display:flex;align-items:center;background:#2b2b2b;padding:4px 12px;margin-right:6px;border-radius:8px 8px 0 0;color:#ccc;font-size:.9em;cursor:pointer;white-space:nowrap;}
-.tab.active{background:#3a3a3a;border:1px solid #555;border-bottom:none;color:#fff;}
-.close-btn{background:none;border:none;color:#aaa;font-size:14px;cursor:pointer;margin-left:6px;}
-.close-btn:hover{color:red;}
-.new-tab-btn{background:none;border:none;color:#00b4ff;font-size:22px;font-weight:bold;cursor:pointer;margin-left:4px;border-radius:5px;transition:background .2s;}
-.new-tab-btn:hover{background:#2a2a2a;color:#0095dd;}
-.address-bar{display:flex;align-items:center;background:#222;height:50px;padding:0 10px;border-bottom:1px solid #333;}
-.nav-button{background:#333;border:none;color:#fff;padding:6px 12px;margin-right:6px;border-radius:6px;cursor:pointer;font-weight:bold;}
-.nav-button:hover{background:#0078ff;}
-#urlInput{flex:1;height:34px;padding:0 10px;border-radius:10px;border:1px solid #555;outline:none;font-size:1em;background:#1c1c1c;color:#e8e8e8;}
-#searchButton{background:#0078ff;border:none;color:white;padding:0 15px;margin-left:6px;border-radius:10px;cursor:pointer;font-weight:bold;}
-#searchButton:hover{background:#005dc1;}
-.content{flex-grow:1;overflow:auto;padding:10px;background:#111;}
-.home{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:white;}
-.home h1{font-size:4em;font-weight:700;margin-bottom:20px;text-shadow:0 0 15px rgba(0,0,0,.5);}
-.home input{width:400px;height:45px;font-size:1.2em;border-radius:12px;border:none;outline:none;padding:0 15px;background:rgba(0,0,0,.6);color:white;}
-.home button{height:45px;font-size:1.2em;border:none;border-radius:12px;padding:0 20px;margin-left:8px;background:#0078ff;color:white;cursor:pointer;font-weight:bold;}
-.home button:hover{background:#005dc1;}
-</style>
+  <meta charset="UTF-8">
+  <title>T9 OS Browser</title>
+
+  <!-- UV core (must exist for proxy to work) -->
+  <script src="/uv/uv.bundle.js" defer></script>
+  <script src="/uv/uv.config.js" defer></script>
+
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;font-family:sans-serif}
+    body{height:100vh;display:flex;flex-direction:column;background:#0e0e0e;color:white;overflow:hidden}
+    .tabbar{display:flex;align-items:center;background:#1c1c1c;height:40px;padding:0 8px;border-bottom:1px solid #333;overflow-x:auto}
+    .tab{display:flex;align-items:center;background:#2b2b2b;padding:4px 12px;margin-right:6px;border-radius:8px 8px 0 0;color:#ccc;font-size:.9em;cursor:pointer;white-space:nowrap;transition:.2s}
+    .tab.active{background:#3a3a3a;border:1px solid #555;border-bottom:none;color:#fff}
+    .close-btn{background:none;border:none;color:#aaa;font-size:14px;cursor:pointer;margin-left:6px}
+    .close-btn:hover{color:red}
+    .new-tab-btn{background:none;border:none;color:#00b4ff;font-size:22px;font-weight:bold;cursor:pointer;margin-left:4px;border-radius:5px;transition:.2s}
+    .new-tab-btn:hover{background:#2a2a2a;color:#0095dd}
+    .address-bar{display:flex;align-items:center;background:#222;height:50px;padding:0 10px;border-bottom:1px solid #333}
+    .nav-button{background:#333;border:none;color:#fff;padding:6px 12px;margin-right:6px;border-radius:6px;cursor:pointer;font-weight:bold}
+    .nav-button:hover{background:#0078ff}
+    #urlInput{flex:1;height:34px;padding:0 10px;border-radius:10px;border:1px solid #555;outline:none;font-size:1em;background:#1c1c1c;color:#e8e8e8}
+    #searchButton{background:#0078ff;border:none;color:white;padding:0 15px;margin-left:6px;border-radius:10px;cursor:pointer;font-weight:bold}
+    #searchButton:hover{background:#005dc1}
+    iframe{flex-grow:1;width:100%;border:none;background:#111;display:none}
+    .home{text-align:center;margin:auto}
+    .home h1{font-size:3em;margin-bottom:20px}
+    .home input{width:350px;height:40px;font-size:1.1em;border-radius:10px;border:none;padding:0 10px;background:#1c1c1c;color:white}
+    .home button{height:40px;font-size:1.1em;border:none;border-radius:10px;padding:0 15px;margin-left:6px;background:#0078ff;color:white;cursor:pointer}
+    .home button:hover{background:#005dc1}
+  </style>
 </head>
 <body>
-<div class="tabbar" id="tabbar"></div>
-<div class="address-bar">
-<button class="nav-button" id="backBtn">←</button>
-<button class="nav-button" id="forwardBtn">→</button>
-<button class="nav-button" id="refreshBtn">⟳</button>
-<input type="text" id="urlInput" placeholder="Enter URL or search...">
-<button id="searchButton">Go</button>
-</div>
-<div class="content" id="contentArea"></div>
-<div class="home" id="homePage">
-<h1>T9 OS</h1>
-<div>
-<input type="text" id="centerSearch" placeholder="Search or enter a URL...">
-<button id="centerGo">Go</button>
-</div>
-</div>
+  <div class="tabbar" id="tabbar"></div>
+  <div class="address-bar">
+    <button class="nav-button" id="backBtn">←</button>
+    <button class="nav-button" id="forwardBtn">→</button>
+    <button class="nav-button" id="refreshBtn">⟳</button>
+    <input type="text" id="urlInput" placeholder="Enter URL or search...">
+    <button id="searchButton">Go</button>
+  </div>
 
-<script>
-const duck="https://duckduckgo.com/?q=";
-const tabbar=document.getElementById("tabbar"),
-      content=document.getElementById("contentArea"),
-      input=document.getElementById("urlInput"),
-      searchBtn=document.getElementById("searchButton"),
-      homePage=document.getElementById("homePage"),
-      centerInput=document.getElementById("centerSearch"),
-      centerGo=document.getElementById("centerGo"),
-      backBtn=document.getElementById("backBtn"),
-      forwardBtn=document.getElementById("forwardBtn"),
-      refreshBtn=document.getElementById("refreshBtn");
+  <iframe id="browserFrame" loading="lazy"></iframe>
 
-let tabs=[],currentTabId=null,historyStack=[],historyIndex=-1;
+  <div class="home" id="homePage">
+    <h1>T9 OS</h1>
+    <input type="text" id="centerSearch" placeholder="Search or URL...">
+    <button id="centerGo">Go</button>
+  </div>
 
-// URL encoder for proxy
-function encodeURL(url){return btoa(url);}
-function decodeURL(url){return atob(url);}
+  <script>
+    const duck = "https://duckduckgo.com/?q=";
+    const frame = document.getElementById("browserFrame");
+    const home = document.getElementById("homePage");
+    const urlInput = document.getElementById("urlInput");
+    const searchBtn = document.getElementById("searchButton");
+    const tabbar = document.getElementById("tabbar");
+    const backBtn = document.getElementById("backBtn");
+    const forwardBtn = document.getElementById("forwardBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const centerSearch = document.getElementById("centerSearch");
+    const centerGo = document.getElementById("centerGo");
 
-// Fetch content through proxy
-async function fetchContent(url){
-  try{
-    const res=await fetch(url); // Add UV proxy prefix if you have one
-    const text=await res.text();
-    content.innerHTML=text;
-  }catch(e){content.innerHTML="<p style='color:red;'>Failed to load.</p>";}
-}
+    let tabs = [], current = null, historyStack = [], historyIndex = -1;
 
-// Render tabs
-function renderTabs(){
-  const frag=document.createDocumentFragment();
-  tabbar.innerHTML="";
-  tabs.forEach(tab=>{
-    const div=document.createElement("div");
-    div.className="tab"+(tab.id===currentTabId?" active":"");
-    div.dataset.id=tab.id;
-    div.innerHTML=`<span>${tab.title}</span><button class="close-btn" onclick="closeTab(event,${tab.id})">×</button>`;
-    div.onclick=()=>switchTab(tab.id);
-    frag.appendChild(div);
-  });
-  const addBtn=document.createElement("button");
-  addBtn.className="new-tab-btn";addBtn.textContent="+";addBtn.onclick=addTab;
-  frag.appendChild(addBtn);
-  tabbar.appendChild(frag);
-}
+    function addTab(){
+      const id = Date.now();
+      tabs.push({id,title:"New Tab",url:""});
+      switchTab(id);
+      renderTabs();
+      showHome(true);
+    }
 
-// Tabs
-function addTab(){const id=Date.now();tabs.push({id,title:"New Tab",url:""});switchTab(id);renderTabs();showHome(true);}
-function closeTab(e,id){e.stopPropagation();const idx=tabs.findIndex(t=>t.id===id);if(idx>-1)tabs.splice(idx,1);if(tabs.length===0)addTab();else if(currentTabId===id)switchTab(tabs[Math.max(idx-1,0)].id);renderTabs();}
-function switchTab(id){currentTabId=id;renderTabs();const tab=tabs.find(t=>t.id===id);tab.url?loadURL(tab.url,false):showHome(true);}
-function showHome(show){homePage.style.display=show?"block":"none";content.style.display=show?"block":"none";}
-function navigate(q){if(!q)return;const isURL=q.includes(".")&&!q.includes(" ");const fullURL=isURL?(/^https?:\/\//i.test(q)?q:"https://"+q):duck+encodeURIComponent(q);const tab=tabs.find(t=>t.id===currentTabId);if(tab){tab.url=fullURL;tab.title=isURL?q.replace(/^https?:\/\//,""):q;}loadURL(fullURL,true);renderTabs();}
-function loadURL(url,addToHistory=true){showHome(false);fetchContent(url);if(addToHistory){historyStack=historyStack.slice(0,historyIndex+1);historyStack.push(url);historyIndex=historyStack.length-1;}}
+    function switchTab(id){
+      current = id;
+      renderTabs();
+      const t = tabs.find(x=>x.id===id);
+      if(t?.url) loadURL(t.url);
+      else showHome(true);
+    }
 
-// Navigation
-backBtn.onclick=()=>{if(historyIndex>0){historyIndex--;loadURL(historyStack[historyIndex],false);}};
-forwardBtn.onclick=()=>{if(historyIndex<historyStack.length-1){historyIndex++;loadURL(historyStack[historyIndex],false);}};
-refreshBtn.onclick=()=>{if(historyIndex>=0)loadURL(historyStack[historyIndex],false);};
+    function closeTab(e,id){
+      e.stopPropagation();
+      const i=tabs.findIndex(t=>t.id===id);
+      if(i>-1) tabs.splice(i,1);
+      if(!tabs.length) addTab();
+      else if(current===id) switchTab(tabs[Math.max(i-1,0)].id);
+      renderTabs();
+    }
 
-// Search
-searchBtn.onclick=()=>navigate(input.value);
-input.addEventListener("keydown",e=>e.key==="Enter"&&navigate(input.value));
-centerGo.onclick=()=>navigate(centerInput.value);
-centerInput.addEventListener("keydown",e=>e.key==="Enter"&&navigate(centerInput.value));
+    function renderTabs(){
+      const f=document.createDocumentFragment();
+      tabs.forEach(t=>{
+        const el=document.createElement("div");
+        el.className="tab"+(t.id===current?" active":"");
+        el.innerHTML=`<span>${t.title}</span><button class="close-btn" onclick="closeTab(event,${t.id})">×</button>`;
+        el.onclick=()=>switchTab(t.id);
+        f.appendChild(el);
+      });
+      const add=document.createElement("button");
+      add.className="new-tab-btn";add.textContent="+";
+      add.onclick=addTab;f.appendChild(add);
+      tabbar.innerHTML="";tabbar.appendChild(f);
+    }
 
-// Inline caching service worker
-window.addEventListener("load",()=>{
-  if("serviceWorker"in navigator){
-    navigator.serviceWorker.register(URL.createObjectURL(new Blob([`
-const TTL=60000;
-self.addEventListener('install',e=>{self.skipWaiting();});
+    function showHome(x){home.style.display=x?"block":"none";frame.style.display=x?"none":"block";}
+
+    function navigate(q){
+      if(!q) return;
+      const isURL=q.includes(".")&&!q.includes(" ");
+      const url=isURL?(q.startsWith("http")?q:"https://"+q):duck+encodeURIComponent(q);
+      const encoded=__uv$config.prefix+__uv$config.encodeUrl(url);
+      const t=tabs.find(x=>x.id===current);
+      if(t){t.url=encoded;t.title=isURL?q.replace(/^https?:\/\//,""):q;}
+      loadURL(encoded,true);renderTabs();
+    }
+
+    function loadURL(u,add=true){
+      showHome(false);
+      if(frame.src!==u) frame.src=u;
+      urlInput.value=u.replace(__uv$config.prefix,"");
+      if(add){
+        historyStack=historyStack.slice(0,historyIndex+1);
+        historyStack.push(u);
+        historyIndex=historyStack.length-1;
+      }
+    }
+
+    backBtn.onclick=()=>{if(historyIndex>0){historyIndex--;loadURL(historyStack[historyIndex],false);}};
+    forwardBtn.onclick=()=>{if(historyIndex<historyStack.length-1){historyIndex++;loadURL(historyStack[historyIndex],false);}};
+    refreshBtn.onclick=()=>{if(historyIndex>=0)loadURL(historyStack[historyIndex],false);};
+    searchBtn.onclick=()=>navigate(urlInput.value);
+    urlInput.addEventListener("keydown",e=>e.key==="Enter"&&navigate(urlInput.value));
+    centerGo.onclick=()=>navigate(centerSearch.value);
+    centerSearch.addEventListener("keydown",e=>e.key==="Enter"&&navigate(centerSearch.value));
+
+    // Caching service worker
+    window.addEventListener("load",()=>{
+      if("serviceWorker" in navigator){
+        navigator.serviceWorker.register(
+          URL.createObjectURL(new Blob([`
+self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('fetch',e=>{
-  e.respondWith(caches.match(e.request).then(r=>{
-    if(r){
-      const fetched=r.clone();
-      const date=fetched.headers.get('sw-cache-date');
-      if(date && (Date.now()-date)>TTL){return fetch(e.request);}
-      return r;
-    } 
-    return fetch(e.request).then(resp=>{
-      const c=resp.clone();
-      const headers=new Headers(c.headers);
-      headers.append('sw-cache-date',Date.now());
-      const respWithHeader=new Response(c.body,{status:c.status,statusText:c.statusText,headers});
-      caches.open('uv-cache').then(cache=>cache.put(e.request,respWithHeader));
-      return respWithHeader;
-    });
-  }));
+  e.respondWith(caches.open('uv-cache').then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(resp=>{
+    c.put(e.request,resp.clone());
+    return resp;
+  }))));
 });
-    `],{type:'text/javascript'})),{scope:'/'});}});
+          `],{type:'text/javascript'})),{scope:'/'});
+      }
+    });
 
-addTab();
-</script>
-</body>
-</html>
+   
