@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>T9 OS Fast Browser</title>
+<title>T9 OS Fast Proxy</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif;}
 body{height:100vh;display:flex;flex-direction:column;background:url('abstract.png') center/cover no-repeat;color:white;overflow:hidden;}
@@ -19,7 +19,7 @@ body{height:100vh;display:flex;flex-direction:column;background:url('abstract.pn
 #urlInput{flex:1;height:34px;padding:0 10px;border-radius:10px;border:1px solid #555;outline:none;font-size:1em;background:#1c1c1c;color:#e8e8e8;}
 #searchButton{background:#0078ff;border:none;color:white;padding:0 15px;margin-left:6px;border-radius:10px;cursor:pointer;font-weight:bold;}
 #searchButton:hover{background:#005dc1;}
-.iframeWindow{flex-grow:1;width:100%;border:none;background:#111;display:none;}
+.content{flex-grow:1;overflow:auto;padding:10px;background:#111;}
 .home{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:white;}
 .home h1{font-size:4em;font-weight:700;margin-bottom:20px;text-shadow:0 0 15px rgba(0,0,0,.5);}
 .home input{width:400px;height:45px;font-size:1.2em;border-radius:12px;border:none;outline:none;padding:0 15px;background:rgba(0,0,0,.6);color:white;}
@@ -36,7 +36,7 @@ body{height:100vh;display:flex;flex-direction:column;background:url('abstract.pn
 <input type="text" id="urlInput" placeholder="Enter URL or search...">
 <button id="searchButton">Go</button>
 </div>
-<iframe id="iframeWindow" class="iframeWindow" loading="lazy"></iframe>
+<div class="content" id="contentArea"></div>
 <div class="home" id="homePage">
 <h1>T9 OS</h1>
 <div>
@@ -44,16 +44,36 @@ body{height:100vh;display:flex;flex-direction:column;background:url('abstract.pn
 <button id="centerGo">Go</button>
 </div>
 </div>
+
 <script>
 const duck="https://duckduckgo.com/?q=";
-const tabbar=document.getElementById("tabbar"),iframe=document.getElementById("iframeWindow"),input=document.getElementById("urlInput"),searchBtn=document.getElementById("searchButton"),homePage=document.getElementById("homePage"),centerInput=document.getElementById("centerSearch"),centerGo=document.getElementById("centerGo"),backBtn=document.getElementById("backBtn"),forwardBtn=document.getElementById("forwardBtn"),refreshBtn=document.getElementById("refreshBtn");
+const tabbar=document.getElementById("tabbar"),
+      content=document.getElementById("contentArea"),
+      input=document.getElementById("urlInput"),
+      searchBtn=document.getElementById("searchButton"),
+      homePage=document.getElementById("homePage"),
+      centerInput=document.getElementById("centerSearch"),
+      centerGo=document.getElementById("centerGo"),
+      backBtn=document.getElementById("backBtn"),
+      forwardBtn=document.getElementById("forwardBtn"),
+      refreshBtn=document.getElementById("refreshBtn");
+
 let tabs=[],currentTabId=null,historyStack=[],historyIndex=-1;
 
-// simple URL encoder for proxy
+// URL encoder for proxy
 function encodeURL(url){return btoa(url);}
 function decodeURL(url){return atob(url);}
 
-// Render tabs efficiently
+// Fetch content through proxy
+async function fetchContent(url){
+  try{
+    const res=await fetch(url); // Add UV proxy prefix if you have one
+    const text=await res.text();
+    content.innerHTML=text;
+  }catch(e){content.innerHTML="<p style='color:red;'>Failed to load.</p>";}
+}
+
+// Render tabs
 function renderTabs(){
   const frag=document.createDocumentFragment();
   tabbar.innerHTML="";
@@ -75,9 +95,9 @@ function renderTabs(){
 function addTab(){const id=Date.now();tabs.push({id,title:"New Tab",url:""});switchTab(id);renderTabs();showHome(true);}
 function closeTab(e,id){e.stopPropagation();const idx=tabs.findIndex(t=>t.id===id);if(idx>-1)tabs.splice(idx,1);if(tabs.length===0)addTab();else if(currentTabId===id)switchTab(tabs[Math.max(idx-1,0)].id);renderTabs();}
 function switchTab(id){currentTabId=id;renderTabs();const tab=tabs.find(t=>t.id===id);tab.url?loadURL(tab.url,false):showHome(true);}
-function showHome(show){homePage.style.display=show?"block":"none";iframe.style.display=show?"block":"none";}
+function showHome(show){homePage.style.display=show?"block":"none";content.style.display=show?"block":"none";}
 function navigate(q){if(!q)return;const isURL=q.includes(".")&&!q.includes(" ");const fullURL=isURL?(/^https?:\/\//i.test(q)?q:"https://"+q):duck+encodeURIComponent(q);const tab=tabs.find(t=>t.id===currentTabId);if(tab){tab.url=fullURL;tab.title=isURL?q.replace(/^https?:\/\//,""):q;}loadURL(fullURL,true);renderTabs();}
-function loadURL(url,addToHistory=true){iframe.style.display="block";homePage.style.display="none";if(iframe.src!==url)iframe.src=url;if(addToHistory){historyStack=historyStack.slice(0,historyIndex+1);historyStack.push(url);historyIndex=historyStack.length-1;}}
+function loadURL(url,addToHistory=true){showHome(false);fetchContent(url);if(addToHistory){historyStack=historyStack.slice(0,historyIndex+1);historyStack.push(url);historyIndex=historyStack.length-1;}}
 
 // Navigation
 backBtn.onclick=()=>{if(historyIndex>0){historyIndex--;loadURL(historyStack[historyIndex],false);}};
@@ -90,7 +110,7 @@ input.addEventListener("keydown",e=>e.key==="Enter"&&navigate(input.value));
 centerGo.onclick=()=>navigate(centerInput.value);
 centerInput.addEventListener("keydown",e=>e.key==="Enter"&&navigate(centerInput.value));
 
-// Inline service worker cache with TTL (1 minute)
+// Inline caching service worker
 window.addEventListener("load",()=>{
   if("serviceWorker"in navigator){
     navigator.serviceWorker.register(URL.createObjectURL(new Blob([`
