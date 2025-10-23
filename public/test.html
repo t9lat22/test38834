@@ -1,133 +1,152 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>T9 OS Browser</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>T9 OS — iframe-free proxied browser</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,sans-serif; }
-  body { height:100vh; display:flex; flex-direction:column; background:#111; color:white; }
-  .tabbar { display:flex; align-items:center; background:#1c1c1c; height:40px; padding:0 8px; overflow-x:auto; }
-  .tab { padding:4px 12px; margin-right:6px; border-radius:8px 8px 0 0; cursor:pointer; background:#2b2b2b; color:#ccc; white-space:nowrap; }
-  .tab.active { background:#3a3a3a; color:white; border:1px solid #555; border-bottom:none; }
-  .close-btn { margin-left:6px; cursor:pointer; color:#aaa; background:none; border:none; }
-  .close-btn:hover { color:red; }
-  .new-tab-btn { margin-left:4px; cursor:pointer; background:none; border:none; color:#00b4ff; font-weight:bold; font-size:22px; }
-  .address-bar { display:flex; align-items:center; background:#222; height:50px; padding:0 10px; border-bottom:1px solid #333; }
-  .nav-button { background:#333; border:none; color:#fff; padding:6px 12px; margin-right:6px; border-radius:6px; cursor:pointer; }
-  #urlInput { flex:1; height:34px; padding:0 10px; border-radius:10px; border:1px solid #555; background:#1c1c1c; color:#e8e8e8; outline:none; }
-  #searchButton { background:#0078ff; border:none; color:white; padding:0 15px; margin-left:6px; border-radius:10px; cursor:pointer; font-weight:bold; }
-  #searchButton:hover, .nav-button:hover { background:#005dc1; }
-  #content { flex:1; overflow:auto; padding:10px; background:#111; }
+body{margin:0;font-family:system-ui;background:#0b0b0b;color:#eee;height:100vh;display:flex;flex-direction:column;}
+.tabbar{display:flex;gap:4px;background:#111;padding:4px;overflow-x:auto;}
+.tab{padding:4px 8px;border-radius:6px;background:#1f1f1f;color:#ccc;cursor:pointer;white-space:nowrap;}
+.tab.active{background:#282828;color:#fff;border:1px solid #3a8fd3;}
+.new-tab{padding:4px 8px;background:transparent;border:1px dashed #2b2b2b;color:#4fc3f7;cursor:pointer;}
+.address{display:flex;gap:4px;padding:4px;background:#0f0f0f;border-bottom:1px solid #161616;}
+.address input{flex:1;padding:6px;border-radius:6px;border:1px solid #262626;background:#0b0b0b;color:#eee;}
+.btn{padding:6px 10px;border-radius:6px;border:none;background:#1376d6;color:#fff;cursor:pointer;}
+.btn.light{background:#222;color:#ddd;}
+#viewport{flex:1;overflow:auto;padding:10px;background:#070707;color:#ddd;}
+pre.notice{padding:12px;background:#111;border-radius:6px;color:#bbb;}
 </style>
 </head>
 <body>
 
 <div class="tabbar" id="tabbar"></div>
 
-<div class="address-bar">
-  <button class="nav-button" id="backBtn">←</button>
-  <button class="nav-button" id="forwardBtn">→</button>
-  <button class="nav-button" id="refreshBtn">⟳</button>
-  <input type="text" id="urlInput" placeholder="Enter URL or search...">
-  <button id="searchButton">Go</button>
+<div class="address">
+  <button class="btn light" id="back">←</button>
+  <button class="btn light" id="forward">→</button>
+  <button class="btn light" id="reload">⟳</button>
+  <input id="url" placeholder="Enter URL or search (youtube.com / poki.com)" />
+  <button class="btn" id="go">Go</button>
 </div>
 
-<div id="content">Welcome to T9 OS!</div>
+<div id="viewport">
+  <pre class="notice">Welcome — type a URL above. Uses your existing UVProxy backend. No iframes.</pre>
+</div>
 
 <script>
-const duckDuckGo = "https://duckduckgo.com/?q=";
-const tabbar = document.getElementById("tabbar");
-const content = document.getElementById("content");
-const urlInput = document.getElementById("urlInput");
-const searchButton = document.getElementById("searchButton");
-const backBtn = document.getElementById("backBtn");
-const forwardBtn = document.getElementById("forwardBtn");
-const refreshBtn = document.getElementById("refreshBtn");
+const PROXY = '/proxy?url='; // <- your existing UVProxy endpoint
+const SEARCH = 'https://duckduckgo.com/?q=';
+
+const tabbar = document.getElementById('tabbar');
+const viewport = document.getElementById('viewport');
+const urlInput = document.getElementById('url');
+const goBtn = document.getElementById('go');
+const backBtn = document.getElementById('back');
+const fwdBtn = document.getElementById('forward');
+const reloadBtn = document.getElementById('reload');
 
 let tabs = [];
-let currentTabId = null;
+let currentTab = null;
 let historyStack = [];
 let historyIndex = -1;
 
-function renderTabs() {
-  tabbar.innerHTML = "";
-  tabs.forEach(tab => {
-    const div = document.createElement("div");
-    div.className = "tab" + (tab.id === currentTabId ? " active" : "");
-    div.dataset.id = tab.id;
-    div.innerHTML = `<span>${tab.title}</span><button class="close-btn" onclick="closeTab(event, ${tab.id})">×</button>`;
-    div.onclick = () => switchTab(tab.id);
-    tabbar.appendChild(div);
-  });
-  const addBtn = document.createElement("button");
-  addBtn.className = "new-tab-btn";
-  addBtn.textContent = "+";
-  addBtn.onclick = addTab;
-  tabbar.appendChild(addBtn);
-}
+function isLikelyUrl(s){ return s && (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s) || (s.includes('.') && !s.includes(' '))); }
+function toFullUrl(s){ return isLikelyUrl(s) ? (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s)?s:'https://'+s) : SEARCH+encodeURIComponent(s); }
+function proxied(url){ return PROXY + encodeURIComponent(url); }
+function createId(){ return Date.now()+Math.floor(Math.random()*1000); }
 
-function addTab(url="") {
-  const id = Date.now();
-  tabs.push({id, title:"New Tab", url});
-  switchTab(id);
-  renderTabs();
-}
-
-function closeTab(e, id) {
-  e.stopPropagation();
-  const idx = tabs.findIndex(t=>t.id===id);
-  if(idx>-1) tabs.splice(idx,1);
-  if(tabs.length===0) addTab();
-  else if(currentTabId===id) switchTab(tabs[Math.max(idx-1,0)].id);
-  renderTabs();
-}
-
-function switchTab(id) {
-  currentTabId = id;
-  renderTabs();
-  const tab = tabs.find(t=>t.id===id);
-  if(tab.url) navigate(tab.url,false);
-  else content.innerHTML = "Welcome to T9 OS!";
-}
-
-async function navigate(query, addHistory=true){
-  if(!query) return;
-  const isURL = query.includes(".") && !query.includes(" ");
-  const fullURL = isURL ? (/^https?:\/\//i.test(query)?query:"https://"+query) : duckDuckGo + encodeURIComponent(query);
-  
-  try {
-    content.innerHTML = "Loading...";
-    const res = await fetch(fullURL);
-    const html = await res.text();
-    content.innerHTML = html;
-  } catch(e){
-    content.innerHTML = `Failed to load ${fullURL}<br>${e}`;
+function renderTabs(){
+  tabbar.innerHTML='';
+  for(const t of tabs){
+    const el=document.createElement('div');
+    el.className='tab'+(t.id===currentTab?' active':'');
+    el.textContent=t.title||t.url||'New Tab';
+    el.onclick=()=>switchTab(t.id);
+    const close=document.createElement('span');
+    close.textContent=' ×';
+    close.style.marginLeft='6px';
+    close.style.opacity='0.7';
+    close.style.cursor='pointer';
+    close.onclick=e=>{ e.stopPropagation(); closeTab(t.id); };
+    el.appendChild(close);
+    tabbar.appendChild(el);
   }
-
-  urlInput.value = fullURL;
-  const tab = tabs.find(t=>t.id===currentTabId);
-  if(tab) { tab.url = fullURL; tab.title = isURL ? query.replace(/^https?:\/\//,"") : query; }
-
-  if(addHistory){
-    historyStack = historyStack.slice(0,historyIndex+1);
-    historyStack.push(fullURL);
-    historyIndex = historyStack.length-1;
-  }
+  const add=document.createElement('button');
+  add.className='new-tab';
+  add.textContent='+';
+  add.onclick=()=>newTab();
+  tabbar.appendChild(add);
 }
 
-backBtn.onclick = ()=>{ if(historyIndex>0) navigate(historyStack[--historyIndex], false); };
-forwardBtn.onclick = ()=>{ if(historyIndex<historyStack.length-1) navigate(historyStack[++historyIndex], false); };
-refreshBtn.onclick = ()=>{ if(historyIndex>=0) navigate(historyStack[historyIndex], false); };
-
-searchButton.onclick = ()=>navigate(urlInput.value);
-urlInput.addEventListener("keydown",e=>{ if(e.key==="Enter") navigate(urlInput.value); });
-
-addTab();
-
-// === Service Worker Registration ===
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(()=>console.log("Service Worker registered for caching"));
+function newTab(url=''){
+  const id=createId();
+  tabs.push({id,title:'New Tab',url});
+  currentTab=id;
+  renderTabs();
+  if(url) loadUrl(url); else showHome();
 }
+function closeTab(id){
+  const idx=tabs.findIndex(t=>t.id===id);
+  if(idx===-1) return;
+  tabs.splice(idx,1);
+  if(tabs.length===0) newTab();
+  currentTab=tabs[Math.max(0,idx-1)].id;
+  renderTabs();
+  const t=tabs.find(t=>t.id===currentTab);
+  if(t?.url) loadUrl(t.url); else showHome();
+}
+function switchTab(id){
+  currentTab=id;
+  renderTabs();
+  const t=tabs.find(x=>x.id===id);
+  if(t?.url) loadUrl(t.url); else showHome();
+}
+
+function showHome(){ viewport.innerHTML='<pre class="notice">Welcome — type URL above. Uses your UVProxy backend. No iframes.</pre>'; urlInput.value=''; }
+
+async function loadUrl(rawUrl){
+  if(!rawUrl) return;
+  const url=toFullUrl(rawUrl);
+  urlInput.value=url;
+  const tab=tabs.find(t=>t.id===currentTab);
+  if(tab){ tab.url=url; tab.title=url; renderTabs(); }
+  viewport.innerHTML=`<pre class="notice">Loading ${url}...</pre>`;
+  try{
+    const resp=await fetch(proxied(url),{credentials:'include'});
+    const html=await resp.text();
+    viewport.innerHTML=html;
+
+    // rewrite anchors to single-page navigation
+    viewport.querySelectorAll('a').forEach(a=>{
+      a.addEventListener('click',ev=>{
+        const href=a.getAttribute('href');
+        if(!href||href.startsWith('javascript:')||href.startsWith('mailto:')) return;
+        ev.preventDefault();
+        const abs=new URL(href,url).toString();
+        const tab=tabs.find(t=>t.id===currentTab);
+        if(tab){ tab.url=abs; tab.title=abs; renderTabs(); }
+        historyPush(abs);
+        loadUrl(abs);
+      });
+    });
+    historyPush(url);
+  }catch(e){ viewport.innerHTML=`<pre class="notice">Failed to load ${url}\n\n${e}</pre>`; console.error(e); }
+}
+
+function historyPush(url){
+  if(historyIndex>=0 && historyStack[historyIndex]===url) return;
+  historyStack=historyStack.slice(0,historyIndex+1);
+  historyStack.push(url);
+  historyIndex=historyStack.length-1;
+}
+
+goBtn.onclick=()=>{ const raw=urlInput.value.trim(); if(raw) loadUrl(raw); };
+backBtn.onclick=()=>{ if(historyIndex>0){ historyIndex--; loadUrl(historyStack[historyIndex]); } };
+fwdBtn.onclick=()=>{ if(historyIndex<historyStack.length-1){ historyIndex++; loadUrl(historyStack[historyIndex]); } };
+reloadBtn.onclick=()=>{ if(historyIndex>=0) loadUrl(historyStack[historyIndex]); };
+
+newTab();
 </script>
 </body>
 </html>
