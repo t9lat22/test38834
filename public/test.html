@@ -3,27 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <title>T9 OS Browser</title>
-
-<!-- BareMux script -->
-<script type="module">
-  import BareMux from './uv/index.js';
-
-  window.baremux = new BareMux.BareClient();
-</script>
-
 <style>
-* { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,sans-serif; }
-body { height:100vh; display:flex; flex-direction:column; background:#111; color:white; overflow:hidden; }
-.address-bar { display:flex; align-items:center; background:#222; height:50px; padding:0 10px; border-bottom:1px solid #333; }
-.nav-button { background:#333; border:none; color:#fff; padding:6px 12px; margin-right:6px; border-radius:6px; cursor:pointer; font-weight:bold; }
-.nav-button:hover { background:#0078ff; }
-#urlInput { flex:1; height:34px; padding:0 10px; border-radius:10px; border:1px solid #555; outline:none; font-size:1em; background:#1c1c1c; color:#e8e8e8; }
-#searchButton { background:#0078ff; border:none; color:white; padding:0 15px; margin-left:6px; border-radius:10px; cursor:pointer; font-weight:bold; }
-#searchButton:hover { background:#005dc1; }
-.content { flex-grow:1; padding:10px; overflow:auto; background:#111; }
+  * { margin:0; padding:0; box-sizing:border-box; font-family:system-ui,sans-serif; }
+  body { height:100vh; display:flex; flex-direction:column; background:#111; color:white; }
+  .tabbar { display:flex; align-items:center; background:#1c1c1c; height:40px; padding:0 8px; overflow-x:auto; }
+  .tab { padding:4px 12px; margin-right:6px; border-radius:8px 8px 0 0; cursor:pointer; background:#2b2b2b; color:#ccc; white-space:nowrap; }
+  .tab.active { background:#3a3a3a; color:white; border:1px solid #555; border-bottom:none; }
+  .close-btn { margin-left:6px; cursor:pointer; color:#aaa; background:none; border:none; }
+  .close-btn:hover { color:red; }
+  .new-tab-btn { margin-left:4px; cursor:pointer; background:none; border:none; color:#00b4ff; font-weight:bold; font-size:22px; }
+  .address-bar { display:flex; align-items:center; background:#222; height:50px; padding:0 10px; border-bottom:1px solid #333; }
+  .nav-button { background:#333; border:none; color:#fff; padding:6px 12px; margin-right:6px; border-radius:6px; cursor:pointer; }
+  #urlInput { flex:1; height:34px; padding:0 10px; border-radius:10px; border:1px solid #555; background:#1c1c1c; color:#e8e8e8; outline:none; }
+  #searchButton { background:#0078ff; border:none; color:white; padding:0 15px; margin-left:6px; border-radius:10px; cursor:pointer; font-weight:bold; }
+  #searchButton:hover, .nav-button:hover { background:#005dc1; }
+  #content { flex:1; overflow:auto; padding:10px; background:#111; }
 </style>
 </head>
 <body>
+
+<div class="tabbar" id="tabbar"></div>
 
 <div class="address-bar">
   <button class="nav-button" id="backBtn">←</button>
@@ -33,62 +32,99 @@ body { height:100vh; display:flex; flex-direction:column; background:#111; color
   <button id="searchButton">Go</button>
 </div>
 
-<div class="content" id="content"></div>
+<div id="content">Welcome to T9 OS!</div>
 
-<script type="module">
+<script>
 const duckDuckGo = "https://duckduckgo.com/?q=";
-const input = document.getElementById("urlInput");
-const searchBtn = document.getElementById("searchButton");
+const tabbar = document.getElementById("tabbar");
 const content = document.getElementById("content");
+const urlInput = document.getElementById("urlInput");
+const searchButton = document.getElementById("searchButton");
+const backBtn = document.getElementById("backBtn");
+const forwardBtn = document.getElementById("forwardBtn");
+const refreshBtn = document.getElementById("refreshBtn");
+
+let tabs = [];
+let currentTabId = null;
 
 let historyStack = [];
 let historyIndex = -1;
 
-async function navigate(query) {
-  if (!query) return;
+function renderTabs() {
+  tabbar.innerHTML = "";
+  tabs.forEach(tab => {
+    const div = document.createElement("div");
+    div.className = "tab" + (tab.id === currentTabId ? " active" : "");
+    div.dataset.id = tab.id;
+    div.innerHTML = `<span>${tab.title}</span><button class="close-btn" onclick="closeTab(event, ${tab.id})">×</button>`;
+    div.onclick = () => switchTab(tab.id);
+    tabbar.appendChild(div);
+  });
+  const addBtn = document.createElement("button");
+  addBtn.className = "new-tab-btn";
+  addBtn.textContent = "+";
+  addBtn.onclick = addTab;
+  tabbar.appendChild(addBtn);
+}
+
+function addTab(url="") {
+  const id = Date.now();
+  tabs.push({id, title:"New Tab", url});
+  switchTab(id);
+  renderTabs();
+}
+
+function closeTab(e, id) {
+  e.stopPropagation();
+  const idx = tabs.findIndex(t => t.id===id);
+  if(idx>-1) tabs.splice(idx,1);
+  if(tabs.length===0) addTab();
+  else if(currentTabId===id) switchTab(tabs[Math.max(idx-1,0)].id);
+  renderTabs();
+}
+
+function switchTab(id) {
+  currentTabId = id;
+  renderTabs();
+  const tab = tabs.find(t=>t.id===id);
+  if(tab.url) navigate(tab.url,false);
+  else content.innerHTML = "Welcome to T9 OS!";
+}
+
+async function navigate(query, addHistory=true){
+  if(!query) return;
   const isURL = query.includes(".") && !query.includes(" ");
-  const fullURL = isURL ? (/^https?:\/\//i.test(query) ? query : "https://" + query)
-                        : duckDuckGo + encodeURIComponent(query);
-  await loadURL(fullURL);
-}
-
-async function loadURL(url) {
+  const fullURL = isURL ? (/^https?:\/\//i.test(query)?query:"https://"+query) : duckDuckGo + encodeURIComponent(query);
+  
+  // Fetch content and stream it
   try {
-    const response = await window.baremux.fetch(url);
-    const html = await response.text();
+    content.innerHTML = "Loading...";
+    const res = await fetch(fullURL);
+    const html = await res.text();
     content.innerHTML = html;
+  } catch(e){
+    content.innerHTML = `Failed to load ${fullURL}<br>${e}`;
+  }
 
-    // update history
-    historyStack = historyStack.slice(0, historyIndex + 1);
-    historyStack.push(url);
-    historyIndex = historyStack.length - 1;
+  urlInput.value = fullURL;
+  const tab = tabs.find(t=>t.id===currentTabId);
+  if(tab) { tab.url = fullURL; tab.title = isURL ? query.replace(/^https?:\/\//,"") : query; }
 
-    input.value = url;
-  } catch (err) {
-    content.innerHTML = `<p style="color:red;">Failed to load: ${url}</p>`;
-    console.error(err);
+  if(addHistory){
+    historyStack = historyStack.slice(0,historyIndex+1);
+    historyStack.push(fullURL);
+    historyIndex = historyStack.length-1;
   }
 }
 
-searchBtn.onclick = () => navigate(input.value);
-input.addEventListener("keydown", e => e.key === "Enter" && navigate(input.value));
+backBtn.onclick = ()=>{ if(historyIndex>0) navigate(historyStack[--historyIndex], false); };
+forwardBtn.onclick = ()=>{ if(historyIndex<historyStack.length-1) navigate(historyStack[++historyIndex], false); };
+refreshBtn.onclick = ()=>{ if(historyIndex>=0) navigate(historyStack[historyIndex], false); };
 
-document.getElementById("backBtn").onclick = () => {
-  if (historyIndex > 0) {
-    historyIndex--;
-    loadURL(historyStack[historyIndex]);
-  }
-};
-document.getElementById("forwardBtn").onclick = () => {
-  if (historyIndex < historyStack.length - 1) {
-    historyIndex++;
-    loadURL(historyStack[historyIndex]);
-  }
-};
-document.getElementById("refreshBtn").onclick = () => {
-  if (historyIndex >= 0) loadURL(historyStack[historyIndex]);
-};
+searchButton.onclick = ()=>navigate(urlInput.value);
+urlInput.addEventListener("keydown",e=>{ if(e.key==="Enter") navigate(urlInput.value); });
+
+addTab();
 </script>
-
 </body>
 </html>
