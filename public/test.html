@@ -2,154 +2,133 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>T9 OS Browser</title>
+  <title>T9 OS Browser — Fast UV</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- UV core (must exist for proxy to work) -->
+  <!-- Preload UV for faster start -->
+  <link rel="preload" href="/uv/uv.bundle.js" as="script">
+  <link rel="preload" href="/uv/uv.config.js" as="script">
   <script src="/uv/uv.bundle.js" defer></script>
   <script src="/uv/uv.config.js" defer></script>
 
   <style>
-    *{margin:0;padding:0;box-sizing:border-box;font-family:sans-serif}
-    body{height:100vh;display:flex;flex-direction:column;background:#0e0e0e;color:white;overflow:hidden}
-    .tabbar{display:flex;align-items:center;background:#1c1c1c;height:40px;padding:0 8px;border-bottom:1px solid #333;overflow-x:auto}
-    .tab{display:flex;align-items:center;background:#2b2b2b;padding:4px 12px;margin-right:6px;border-radius:8px 8px 0 0;color:#ccc;font-size:.9em;cursor:pointer;white-space:nowrap;transition:.2s}
-    .tab.active{background:#3a3a3a;border:1px solid #555;border-bottom:none;color:#fff}
-    .close-btn{background:none;border:none;color:#aaa;font-size:14px;cursor:pointer;margin-left:6px}
-    .close-btn:hover{color:red}
-    .new-tab-btn{background:none;border:none;color:#00b4ff;font-size:22px;font-weight:bold;cursor:pointer;margin-left:4px;border-radius:5px;transition:.2s}
-    .new-tab-btn:hover{background:#2a2a2a;color:#0095dd}
-    .address-bar{display:flex;align-items:center;background:#222;height:50px;padding:0 10px;border-bottom:1px solid #333}
-    .nav-button{background:#333;border:none;color:#fff;padding:6px 12px;margin-right:6px;border-radius:6px;cursor:pointer;font-weight:bold}
-    .nav-button:hover{background:#0078ff}
-    #urlInput{flex:1;height:34px;padding:0 10px;border-radius:10px;border:1px solid #555;outline:none;font-size:1em;background:#1c1c1c;color:#e8e8e8}
-    #searchButton{background:#0078ff;border:none;color:white;padding:0 15px;margin-left:6px;border-radius:10px;cursor:pointer;font-weight:bold}
-    #searchButton:hover{background:#005dc1}
-    iframe{flex-grow:1;width:100%;border:none;background:#111;display:none}
-    .home{text-align:center;margin:auto}
-    .home h1{font-size:3em;margin-bottom:20px}
-    .home input{width:350px;height:40px;font-size:1.1em;border-radius:10px;border:none;padding:0 10px;background:#1c1c1c;color:white}
-    .home button{height:40px;font-size:1.1em;border:none;border-radius:10px;padding:0 15px;margin-left:6px;background:#0078ff;color:white;cursor:pointer}
-    .home button:hover{background:#005dc1}
+    * { margin:0; padding:0; box-sizing:border-box; font-family:sans-serif; }
+    body { height:100vh; display:flex; flex-direction:column; background:#101010; color:white; }
+    .bar { display:flex; align-items:center; background:#1c1c1c; padding:6px; border-bottom:1px solid #333; }
+    .bar input { flex:1; margin:0 6px; padding:8px; border-radius:8px; border:1px solid #444; background:#000; color:#eee; }
+    button { background:#0078ff; border:none; color:white; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    button:hover { background:#005fd1; }
+    iframe { flex:1; border:none; width:100%; background:#000; }
+    .tabs { display:flex; background:#151515; border-bottom:1px solid #333; overflow-x:auto; }
+    .tab { padding:6px 10px; margin-right:4px; background:#222; border-radius:8px 8px 0 0; cursor:pointer; }
+    .tab.active { background:#333; color:#00bfff; border-bottom:2px solid #00bfff; }
   </style>
 </head>
 <body>
-  <div class="tabbar" id="tabbar"></div>
-  <div class="address-bar">
-    <button class="nav-button" id="backBtn">←</button>
-    <button class="nav-button" id="forwardBtn">→</button>
-    <button class="nav-button" id="refreshBtn">⟳</button>
-    <input type="text" id="urlInput" placeholder="Enter URL or search...">
-    <button id="searchButton">Go</button>
+  <div class="tabs" id="tabs"></div>
+
+  <div class="bar">
+    <button id="backBtn">←</button>
+    <button id="fwdBtn">→</button>
+    <button id="reloadBtn">⟳</button>
+    <input id="urlBox" placeholder="Enter URL or search...">
+    <button id="goBtn">Go</button>
   </div>
 
-  <iframe id="browserFrame" loading="lazy"></iframe>
-
-  <div class="home" id="homePage">
-    <h1>T9 OS</h1>
-    <input type="text" id="centerSearch" placeholder="Search or URL...">
-    <button id="centerGo">Go</button>
-  </div>
+  <iframe id="view" src="about:blank" loading="lazy"></iframe>
 
   <script>
-    const duck = "https://duckduckgo.com/?q=";
-    const frame = document.getElementById("browserFrame");
-    const home = document.getElementById("homePage");
-    const urlInput = document.getElementById("urlInput");
-    const searchBtn = document.getElementById("searchButton");
-    const tabbar = document.getElementById("tabbar");
-    const backBtn = document.getElementById("backBtn");
-    const forwardBtn = document.getElementById("forwardBtn");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const centerSearch = document.getElementById("centerSearch");
-    const centerGo = document.getElementById("centerGo");
-
-    let tabs = [], current = null, historyStack = [], historyIndex = -1;
-
-    function addTab(){
-      const id = Date.now();
-      tabs.push({id,title:"New Tab",url:""});
-      switchTab(id);
-      renderTabs();
-      showHome(true);
-    }
-
-    function switchTab(id){
-      current = id;
-      renderTabs();
-      const t = tabs.find(x=>x.id===id);
-      if(t?.url) loadURL(t.url);
-      else showHome(true);
-    }
-
-    function closeTab(e,id){
-      e.stopPropagation();
-      const i=tabs.findIndex(t=>t.id===id);
-      if(i>-1) tabs.splice(i,1);
-      if(!tabs.length) addTab();
-      else if(current===id) switchTab(tabs[Math.max(i-1,0)].id);
-      renderTabs();
-    }
-
-    function renderTabs(){
-      const f=document.createDocumentFragment();
-      tabs.forEach(t=>{
-        const el=document.createElement("div");
-        el.className="tab"+(t.id===current?" active":"");
-        el.innerHTML=`<span>${t.title}</span><button class="close-btn" onclick="closeTab(event,${t.id})">×</button>`;
-        el.onclick=()=>switchTab(t.id);
-        f.appendChild(el);
-      });
-      const add=document.createElement("button");
-      add.className="new-tab-btn";add.textContent="+";
-      add.onclick=addTab;f.appendChild(add);
-      tabbar.innerHTML="";tabbar.appendChild(f);
-    }
-
-    function showHome(x){home.style.display=x?"block":"none";frame.style.display=x?"none":"block";}
-
-    function navigate(q){
-      if(!q) return;
-      const isURL=q.includes(".")&&!q.includes(" ");
-      const url=isURL?(q.startsWith("http")?q:"https://"+q):duck+encodeURIComponent(q);
-      const encoded=__uv$config.prefix+__uv$config.encodeUrl(url);
-      const t=tabs.find(x=>x.id===current);
-      if(t){t.url=encoded;t.title=isURL?q.replace(/^https?:\/\//,""):q;}
-      loadURL(encoded,true);renderTabs();
-    }
-
-    function loadURL(u,add=true){
-      showHome(false);
-      if(frame.src!==u) frame.src=u;
-      urlInput.value=u.replace(__uv$config.prefix,"");
-      if(add){
-        historyStack=historyStack.slice(0,historyIndex+1);
-        historyStack.push(u);
-        historyIndex=historyStack.length-1;
-      }
-    }
-
-    backBtn.onclick=()=>{if(historyIndex>0){historyIndex--;loadURL(historyStack[historyIndex],false);}};
-    forwardBtn.onclick=()=>{if(historyIndex<historyStack.length-1){historyIndex++;loadURL(historyStack[historyIndex],false);}};
-    refreshBtn.onclick=()=>{if(historyIndex>=0)loadURL(historyStack[historyIndex],false);};
-    searchBtn.onclick=()=>navigate(urlInput.value);
-    urlInput.addEventListener("keydown",e=>e.key==="Enter"&&navigate(urlInput.value));
-    centerGo.onclick=()=>navigate(centerSearch.value);
-    centerSearch.addEventListener("keydown",e=>e.key==="Enter"&&navigate(centerSearch.value));
-
-    // Caching service worker
-    window.addEventListener("load",()=>{
-      if("serviceWorker" in navigator){
+    // --- UV caching service worker (inline, faster than cache.js) ---
+    window.addEventListener("load", () => {
+      if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register(
           URL.createObjectURL(new Blob([`
-self.addEventListener('install',e=>self.skipWaiting());
-self.addEventListener('fetch',e=>{
-  e.respondWith(caches.open('uv-cache').then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(resp=>{
-    c.put(e.request,resp.clone());
-    return resp;
-  }))));
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(clients.claim()));
+self.addEventListener('fetch', e => {
+  e.respondWith(
+    caches.match(e.request).then(r =>
+      r || fetch(e.request).then(resp => {
+        const copy = resp.clone();
+        caches.open('uv-fast-cache').then(c => c.put(e.request, copy));
+        return resp;
+      })
+    )
+  );
 });
-          `],{type:'text/javascript'})),{scope:'/'});
+          `], { type: "text/javascript" })),
+          { scope: "/" }
+        );
       }
     });
 
-   
+    // --- UI logic ---
+    const view = document.getElementById("view");
+    const urlBox = document.getElementById("urlBox");
+    const goBtn = document.getElementById("goBtn");
+    const backBtn = document.getElementById("backBtn");
+    const fwdBtn = document.getElementById("fwdBtn");
+    const reloadBtn = document.getElementById("reloadBtn");
+    const tabsDiv = document.getElementById("tabs");
+
+    let tabs = [];
+    let current = null;
+
+    const searchEngine = "https://duckduckgo.com/?q=";
+
+    function addTab(url = "") {
+      const id = Date.now();
+      tabs.push({ id, title: url || "New Tab", url });
+      current = id;
+      renderTabs();
+      if (url) loadURL(url);
+    }
+
+    function renderTabs() {
+      tabsDiv.innerHTML = "";
+      for (const tab of tabs) {
+        const t = document.createElement("div");
+        t.className = "tab" + (tab.id === current ? " active" : "");
+        t.textContent = tab.title.slice(0, 18);
+        t.onclick = () => switchTab(tab.id);
+        tabsDiv.appendChild(t);
+      }
+      const plus = document.createElement("div");
+      plus.textContent = "+";
+      plus.className = "tab";
+      plus.onclick = () => addTab();
+      tabsDiv.appendChild(plus);
+    }
+
+    function switchTab(id) {
+      current = id;
+      renderTabs();
+      const tab = tabs.find(t => t.id === id);
+      if (tab?.url) loadURL(tab.url);
+      else view.src = "about:blank";
+    }
+
+    function navigate(input) {
+      if (!input.trim()) return;
+      const isURL = input.includes(".") && !input.includes(" ");
+      const full = isURL ? (input.startsWith("http") ? input : "https://" + input)
+                         : searchEngine + encodeURIComponent(input);
+      const proxyURL = __uv$config.prefix + __uv$config.encodeUrl(full);
+      loadURL(proxyURL);
+      const tab = tabs.find(t => t.id === current);
+      if (tab) { tab.url = proxyURL; tab.title = input; }
+      renderTabs();
+    }
+
+    function loadURL(u) { view.src = u; urlBox.value = u; }
+
+    goBtn.onclick = () => navigate(urlBox.value);
+    urlBox.addEventListener("keydown", e => e.key === "Enter" && navigate(urlBox.value));
+    reloadBtn.onclick = () => view.contentWindow.location.reload();
+    backBtn.onclick = () => view.contentWindow.history.back();
+    fwdBtn.onclick = () => view.contentWindow.history.forward();
+
+    addTab();
+  </script>
+</body>
+</html>
