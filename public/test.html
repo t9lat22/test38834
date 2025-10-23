@@ -46,7 +46,6 @@ const refreshBtn = document.getElementById("refreshBtn");
 
 let tabs = [];
 let currentTabId = null;
-
 let historyStack = [];
 let historyIndex = -1;
 
@@ -76,7 +75,7 @@ function addTab(url="") {
 
 function closeTab(e, id) {
   e.stopPropagation();
-  const idx = tabs.findIndex(t => t.id===id);
+  const idx = tabs.findIndex(t=>t.id===id);
   if(idx>-1) tabs.splice(idx,1);
   if(tabs.length===0) addTab();
   else if(currentTabId===id) switchTab(tabs[Math.max(idx-1,0)].id);
@@ -96,7 +95,6 @@ async function navigate(query, addHistory=true){
   const isURL = query.includes(".") && !query.includes(" ");
   const fullURL = isURL ? (/^https?:\/\//i.test(query)?query:"https://"+query) : duckDuckGo + encodeURIComponent(query);
   
-  // Fetch content and stream it
   try {
     content.innerHTML = "Loading...";
     const res = await fetch(fullURL);
@@ -125,6 +123,11 @@ searchButton.onclick = ()=>navigate(urlInput.value);
 urlInput.addEventListener("keydown",e=>{ if(e.key==="Enter") navigate(urlInput.value); });
 
 addTab();
+
+// === Service Worker Registration ===
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(()=>console.log("Service Worker registered for caching"));
+}
 </script>
 </body>
 </html>
